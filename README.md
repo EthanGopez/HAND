@@ -17,14 +17,6 @@ electrotactile work is a separate, safety-gated research track.
 3. **EMG Wearable and Haptic Feedback**: MyoWare acquisition, intent
    detection, wireless communication, vibration cues, and wearable validation.
 
-## Start here
-
-- [Project planning index](docs/README.md)
-- [Member onboarding index](docs/onboarding/README.md)
-- [Repository layout](docs/repository-layout.md)
-- [Subsystem interface workspace](docs/interfaces/README.md)
-- [Contribution workflow](CONTRIBUTING.md)
-
 ## VHA quick start
 
 The ROS environment is based on the tested
@@ -81,11 +73,3 @@ git clone --recurse-submodules <HAND repository URL>
 - Phase 1 contains no human-connected electrotactile stimulation circuitry.
 - A custom PCB is necessary but not sufficient for any future stimulation
   system to be considered safe.
-
-## Existing planning resources
-
-- [Co-lead recruitment brief](docs/01-tech-lead-recruitment.md)
-- [Reference paper breakdown](docs/02-paper-breakdown.md)
-- [System architecture and semester plan](docs/03-system-architecture.md)
-- [CRACKLE reuse and ROS learning plan](docs/04-crackle-ros-reuse.md)
-- [Semester 1 BOM decisions](outputs/fall26-bom-revision/HAND_of_God_Semester_1_BOM_Decisions.md)
