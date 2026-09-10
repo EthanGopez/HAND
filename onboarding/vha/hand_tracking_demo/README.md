@@ -31,13 +31,6 @@ python onboarding/vha/hand_tracking_demo/hand_tracking_demo.py \
   --source 0 \
   --output hand_landmarks.csv
 ```
-
-Prerecorded video:
-
-```bash
-python onboarding/vha/hand_tracking_demo/hand_tracking_demo.py \
-  --source path/to/video.mp4 \
-  --output hand_landmarks.csv
 ```
 
 A phone-camera app that exposes an HTTP video URL can be used by passing that
