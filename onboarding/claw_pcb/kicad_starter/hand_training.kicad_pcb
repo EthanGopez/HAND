@@ -1,0 +1,41 @@
+(kicad_pcb
+  (version 20240108)
+  (generator hand_onboarding)
+  (general
+    (thickness 1.6)
+  )
+  (paper "A4")
+  (layers
+    (0 "F.Cu" signal)
+    (31 "B.Cu" signal)
+    (36 "B.SilkS" user "b.silkscreen")
+    (37 "F.SilkS" user "f.silkscreen")
+    (44 "Edge.Cuts" user)
+  )
+  (setup
+    (pad_to_mask_clearance 0)
+  )
+  (net 0 "")
+  (gr_rect
+    (start 100 75)
+    (end 160 115)
+    (stroke
+      (width 0.5)
+      (type default)
+    )
+    (fill none)
+    (layer "Edge.Cuts")
+    (uuid 760ac29b-3c4c-4aad-92e9-81490d9e1097)
+  )
+  (gr_text "HAND TRAINING — DO NOT FABRICATE"
+    (at 130 95)
+    (layer "F.SilkS")
+    (uuid 3be68d77-c94b-4f28-b86f-d61bd1d5f01d)
+    (effects
+      (font
+        (size 1.5 1.5)
+        (thickness 0.3)
+      )
+    )
+  )
+)

@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "ms-vscode-remote.remote-containers",
+    "ms-vscode.cpptools",
+    "ms-python.python",
+    "ms-iot.vscode-ros",
+    "redhat.vscode-yaml"
+  ]
+}
+

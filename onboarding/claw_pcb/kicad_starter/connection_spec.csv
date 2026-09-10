@@ -1,0 +1,22 @@
+reference,pin,net,description
+J1,1,5V_ACTUATOR,External actuator power input
+J1,2,GND,Power return
+J2,1,5V_ACTUATOR,Servo power
+J2,2,GND,Servo return
+J2,3,SERVO_PWM,Servo command signal
+J3,1,3V3,Force-sensor logic supply
+J3,2,GND,Force-sensor return
+J3,3,FORCE_SENSE,Analog force-sensor signal
+J4,1,3V3,Controller logic supply
+J4,2,GND,Controller return
+J4,3,UART_TX,Controller transmit
+J4,4,UART_RX,Controller receive
+R1,1,3V3,Indicator resistor input
+R1,2,LED_A,Indicator resistor output
+D1,1,LED_A,LED anode
+D1,2,GND,LED cathode
+TP1,1,5V_ACTUATOR,Actuator-rail test point
+TP2,1,3V3,Logic-rail test point
+TP3,1,GND,Ground test point
+TP4,1,SERVO_PWM,PWM test point
+TP5,1,FORCE_SENSE,Analog signal test point

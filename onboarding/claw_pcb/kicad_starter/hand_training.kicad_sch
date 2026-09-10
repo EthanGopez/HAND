@@ -1,0 +1,19 @@
+(kicad_sch
+  (version 20231120)
+  (generator hand_onboarding)
+  (uuid 54cba8ef-5d65-4b45-887d-8b4ae5dbce09)
+  (paper "A4")
+  (title_block
+    (title "HAND Low-Voltage Connector Training Board")
+    (date "2026-09-09")
+    (rev "onboarding-1")
+    (company "ECLAIR Robotics")
+    (comment 1 "Training exercise only — not for fabrication")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/"
+      (page "1")
+    )
+  )
+)
