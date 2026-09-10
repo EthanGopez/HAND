@@ -1,9 +1,8 @@
 # KiCad Starter Exercise
 
 This is a blank-but-valid KiCad 10 training project with a 60 mm × 40 mm board
-outline. Members turn the connection specification below into a tiny
-low-voltage connector/indicator board. It teaches the workflow without
-pretending to be the production base PCB.
+outline. It teaches the workflow without pretending to be the production base PCB.
+WIP!! ( don't do quite yet :P )
 
 Open `hand_training.kicad_pro` in KiCad 10.
 
@@ -21,20 +20,20 @@ Open `hand_training.kicad_pro` in KiCad 10.
 
 The same information is available in `connection_spec.csv` for checking work.
 
-## 75-minute exercise
+## Exercise
 
-1. **Schematic — 25 minutes:** place and annotate the connectors, resistor,
+1. **Schematic** place and annotate the connectors, resistor,
    LED, and test points. Wire or label the named nets. Add `PWR_FLAG` symbols
    only where you understand why ERC needs them.
-2. **Footprints — 10 minutes:** assign generic 2.54 mm pin-header footprints,
+2. **Footprints** assign generic 2.54 mm pin-header footprints,
    an axial or through-hole resistor, a through-hole LED, and test-point
    footprints.
-3. **ERC — 10 minutes:** run Inspect → Electrical Rules Checker. Resolve or
+3. **ERC** run Inspect → Electrical Rules Checker. Resolve or
    explain every warning; do not simply exclude all violations.
-4. **PCB — 20 minutes:** update the PCB from the schematic, place everything
+4. **PCB** update the PCB from the schematic, place everything
    inside the supplied outline, keep the force-signal path away from the
    actuator rail, and route the board.
-5. **DRC and 3D view — 10 minutes:** run the Design Rules Checker and open the
+5. **DRC and 3D view** run the Design Rules Checker and open the
    3D Viewer. Save one screenshot of each.
 
 ## Completion check
