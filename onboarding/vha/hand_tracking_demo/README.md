@@ -1,6 +1,6 @@
-# Hand Tracking Demo
+# Hand Tracking Quick Demo
 
-This hardware-free exercise uses MediaPipe and OpenCV to detect 21 hand
+This hardware-free demo uses MediaPipe and OpenCV to detect 21 hand
 landmarks from a laptop webcam, a video file, or a phone-camera stream. It is
 deliberately independent of ROS: the first goal is to understand the camera
 data and tracking-loss behavior.
@@ -51,12 +51,10 @@ detected hand receive one `tracked=false` row, making tracking loss explicit.
 Coordinates `x` and `y` are normalized to the image; `z` is MediaPipe's
 relative depth value and is not a metric distance.
 
-## Completion check
+## Observe the following
 
 - The display shows a labeled hand skeleton.
 - A CSV is produced with landmark indices `0` through `20`.
 - Hiding the hand produces `tracked=false` rows.
-- The member can explain why this output must be calibrated, filtered, and
-  bounded before it can influence a robot.
 
 This demo never connects to ROS or the physical xArm.
