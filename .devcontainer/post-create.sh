@@ -5,6 +5,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 apt-get install -y --no-install-recommends \
+  dbus-x11 \
   git \
   novnc \
   python3-colcon-common-extensions \

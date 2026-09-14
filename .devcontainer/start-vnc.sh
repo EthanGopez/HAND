@@ -22,7 +22,10 @@ export XDG_SESSION_TYPE=x11
 export GDK_BACKEND=x11
 export QT_QPA_PLATFORM=xcb
 
-exec startxfce4
+# VNC does not provide a login session, so create a private D-Bus session for
+# Xfce. Without it, Xfce falls back to dbus-launch and its settings daemon
+# cannot start when that helper is unavailable.
+exec dbus-run-session -- startxfce4
 EOF
 chmod 700 "${XSTARTUP}"
 
