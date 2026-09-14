@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Display and record MediaPipe hand landmarks from an ordinary camera."""
+"""Track hands in live video and record MediaPipe Tasks landmarks to CSV."""
 
 from __future__ import annotations
 
@@ -14,18 +14,10 @@ from urllib.request import urlopen
 
 MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
-    "hand_landmarker/float16/1/hand_landmarker.task"
+    "hand_landmarker/float16/latest/hand_landmarker.task"
 )
-DEFAULT_MODEL = Path(__file__).parent / "models" / "hand_landmarker.task"
-
-# MediaPipe's 21-landmark hand topology.
-HAND_CONNECTIONS = (
-    (0, 1), (1, 2), (2, 3), (3, 4),
-    (0, 5), (5, 6), (6, 7), (7, 8),
-    (5, 9), (9, 10), (10, 11), (11, 12),
-    (9, 13), (13, 14), (14, 15), (15, 16),
-    (13, 17), (0, 17), (17, 18), (18, 19), (19, 20),
-)
+DEFAULT_MODEL = Path.home() / ".cache" / "mediapipe" / "hand_landmarker.task"
+DEFAULT_OUTPUT = Path("hand_landmarks.csv")
 
 CSV_FIELDS = (
     "frame_index",
@@ -35,9 +27,14 @@ CSV_FIELDS = (
     "handedness",
     "handedness_score",
     "landmark_index",
-    "x",
-    "y",
-    "z",
+    "normalized_x",
+    "normalized_y",
+    "normalized_z",
+    "pixel_x",
+    "pixel_y",
+    "world_x_m",
+    "world_y_m",
+    "world_z_m",
 )
 
 
@@ -51,7 +48,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        help="Optional CSV path for recorded landmarks and tracking-loss rows.",
+        default=DEFAULT_OUTPUT,
+        help=f"CSV destination (default: {DEFAULT_OUTPUT}).",
+    )
+    parser.add_argument(
+        "--no-output",
+        action="store_true",
+        help="Run without recording a CSV file.",
     )
     parser.add_argument(
         "--model",
@@ -59,7 +62,7 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_MODEL,
         help="Path to the MediaPipe Hand Landmarker task model.",
     )
-    parser.add_argument("--num-hands", type=int, default=1, choices=(1, 2))
+    parser.add_argument("--num-hands", type=int, default=2, choices=(1, 2))
     parser.add_argument(
         "--no-download",
         action="store_true",
@@ -89,6 +92,7 @@ def resolve_source(value: str) -> int | str:
 
 
 def ensure_model(model_path: Path, allow_download: bool) -> None:
+    """Download the same Hand Landmarker model used by the notebook."""
     if model_path.is_file():
         return
     if not allow_download:
@@ -110,17 +114,43 @@ def ensure_model(model_path: Path, allow_download: bool) -> None:
             partial_path.unlink()
 
 
-def draw_result(frame: Any, result: Any, cv2: Any) -> None:
+def open_capture(source: int | str, cv2: Any) -> Any:
+    """Open a video source, selecting AVFoundation for a macOS webcam."""
+    if sys.platform == "darwin" and isinstance(source, int):
+        return cv2.VideoCapture(source, cv2.CAP_AVFOUNDATION)
+    return cv2.VideoCapture(source)
+
+
+def warm_up_camera(capture: Any) -> bool:
+    """Discard initial webcam frames while exposure and focus settle."""
+    time.sleep(1)
+    received_image = False
+    for _ in range(30):
+        ok, frame = capture.read()
+        if ok and frame is not None and frame.size > 0 and frame.max() > 0:
+            received_image = True
+        time.sleep(0.03)
+    return received_image
+
+
+def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
+    """Draw the Tasks API landmarks and connections on one video frame."""
     height, width = frame.shape[:2]
     for hand_index, landmarks in enumerate(result.hand_landmarks):
         points = [
             (int(landmark.x * width), int(landmark.y * height))
             for landmark in landmarks
         ]
-        for start, end in HAND_CONNECTIONS:
-            cv2.line(frame, points[start], points[end], (80, 220, 120), 2)
+        for connection in vision.HandLandmarksConnections.HAND_CONNECTIONS:
+            cv2.line(
+                frame,
+                points[connection.start],
+                points[connection.end],
+                (80, 220, 80),
+                2,
+            )
         for landmark_index, point in enumerate(points):
-            cv2.circle(frame, point, 4, (40, 90, 255), -1)
+            cv2.circle(frame, point, 4, (30, 30, 255), -1)
             if landmark_index in (0, 4, 8, 12, 16, 20):
                 cv2.putText(
                     frame,
@@ -153,9 +183,12 @@ def write_result(
     result: Any,
     frame_index: int,
     timestamp_ms: int,
-) -> None:
+    frame_width: int,
+    frame_height: int,
+) -> int:
+    """Write one row per landmark and return the number of rows written."""
     if writer is None:
-        return
+        return 0
     if not result.hand_landmarks:
         writer.writerow(
             {
@@ -165,11 +198,15 @@ def write_result(
                 "hand_index": -1,
             }
         )
-        return
+        return 1
 
+    rows_written = 0
     for hand_index, landmarks in enumerate(result.hand_landmarks):
         handedness = result.handedness[hand_index][0]
-        for landmark_index, landmark in enumerate(landmarks):
+        world_landmarks = result.hand_world_landmarks[hand_index]
+        for landmark_index, (landmark, world_landmark) in enumerate(
+            zip(landmarks, world_landmarks)
+        ):
             writer.writerow(
                 {
                     "frame_index": frame_index,
@@ -179,86 +216,187 @@ def write_result(
                     "handedness": handedness.category_name,
                     "handedness_score": f"{handedness.score:.6f}",
                     "landmark_index": landmark_index,
-                    "x": f"{landmark.x:.8f}",
-                    "y": f"{landmark.y:.8f}",
-                    "z": f"{landmark.z:.8f}",
+                    "normalized_x": f"{landmark.x:.8f}",
+                    "normalized_y": f"{landmark.y:.8f}",
+                    "normalized_z": f"{landmark.z:.8f}",
+                    "pixel_x": int(landmark.x * frame_width),
+                    "pixel_y": int(landmark.y * frame_height),
+                    "world_x_m": f"{world_landmark.x:.8f}",
+                    "world_y_m": f"{world_landmark.y:.8f}",
+                    "world_z_m": f"{world_landmark.z:.8f}",
                 }
             )
+            rows_written += 1
+
+    return rows_written
+
+
+def first_index_tip_text(result: Any) -> str:
+    """Summarize landmark 8 so data collection is visible while running."""
+    if not result.hand_landmarks:
+        return "Index tip: --"
+    tip = result.hand_landmarks[0][8]
+    return f"Index tip: x={tip.x:.3f} y={tip.y:.3f} z={tip.z:.3f}"
+
+
+def draw_status(
+    frame: Any,
+    result: Any,
+    fps: float,
+    csv_rows: int,
+    recording: bool,
+    cv2: Any,
+) -> None:
+    """Show tracking and recording state in the live preview."""
+    tracked = bool(result.hand_landmarks)
+    status = f"{'TRACKED' if tracked else 'NO HAND'} | {fps:.1f} FPS"
+    color = (80, 220, 120) if tracked else (40, 80, 255)
+    recording_text = f"CSV rows: {csv_rows}" if recording else "CSV recording: off"
+
+    lines = (
+        (status, color),
+        (first_index_tip_text(result), (255, 255, 255)),
+        (recording_text, (255, 255, 255)),
+        ("Press q or Esc to stop", (200, 200, 200)),
+    )
+    for line_index, (text, text_color) in enumerate(lines):
+        cv2.putText(
+            frame,
+            text,
+            (16, 32 + line_index * 27),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.65,
+            text_color,
+            2,
+            cv2.LINE_AA,
+        )
 
 
 def run(args: argparse.Namespace) -> int:
     try:
         import cv2
         import mediapipe as mp
+        from mediapipe.tasks import python
+        from mediapipe.tasks.python import vision
     except ImportError as error:
         print(
-            "Missing dependency. Activate the VHA environment and install "
-            "requirements.txt.\n" + str(error),
+            "Missing dependency. Activate the hand-tracking .venv and run "
+            "`python -m pip install -r requirements.txt`.\n" + str(error),
             file=sys.stderr,
         )
         return 2
 
     ensure_model(args.model, allow_download=not args.no_download)
     source = resolve_source(args.source)
-    capture = cv2.VideoCapture(source)
+    is_local_camera = isinstance(source, int)
+    capture = open_capture(source, cv2)
     if not capture.isOpened():
         print(f"Could not open video source: {args.source}", file=sys.stderr)
         return 2
 
+    if is_local_camera and not warm_up_camera(capture):
+        capture.release()
+        print(
+            "The webcam opened but returned only empty or black frames. "
+            "Check camera permissions and close other camera apps.",
+            file=sys.stderr,
+        )
+        return 2
+
+    output_path = None if args.no_output else args.output
     output_file = None
     writer = None
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        output_file = args.output.open("w", newline="", encoding="utf-8")
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_file = output_path.open("w", newline="", encoding="utf-8")
         writer = csv.DictWriter(output_file, fieldnames=CSV_FIELDS)
         writer.writeheader()
+        output_file.flush()
 
-    options = mp.tasks.vision.HandLandmarkerOptions(
-        base_options=mp.tasks.BaseOptions(model_asset_path=str(args.model)),
-        running_mode=mp.tasks.vision.RunningMode.VIDEO,
+    options = vision.HandLandmarkerOptions(
+        base_options=python.BaseOptions(model_asset_path=str(args.model)),
+        running_mode=vision.RunningMode.VIDEO,
         num_hands=args.num_hands,
         min_hand_detection_confidence=0.5,
         min_hand_presence_confidence=0.5,
         min_tracking_confidence=0.5,
     )
 
-    is_local_camera = isinstance(source, int)
     frame_index = 0
+    csv_rows = 0
     last_timestamp_ms = -1
+    previous_frame_time = time.perf_counter()
+    smoothed_fps = 0.0
+
+    print(f"MediaPipe {mp.__version__}; model: {args.model}")
+    if output_path is not None:
+        print(f"Recording live landmark rows to: {output_path.resolve()}")
+    print("Press q or Esc in the video window to stop.")
 
     try:
-        with mp.tasks.vision.HandLandmarker.create_from_options(options) as landmarker:
+        with vision.HandLandmarker.create_from_options(options) as landmarker:
             while True:
                 ok, frame = capture.read()
-                if not ok:
+                if not ok or frame is None:
                     break
                 if is_local_camera and not args.no_mirror:
                     frame = cv2.flip(frame, 1)
 
-                timestamp_ms = max(last_timestamp_ms + 1, time.monotonic_ns() // 1_000_000)
+                timestamp_ms = max(
+                    last_timestamp_ms + 1,
+                    time.monotonic_ns() // 1_000_000,
+                )
                 last_timestamp_ms = timestamp_ms
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+                mp_image = mp.Image(
+                    image_format=mp.ImageFormat.SRGB,
+                    data=rgb_frame,
+                )
                 result = landmarker.detect_for_video(mp_image, timestamp_ms)
 
-                write_result(writer, result, frame_index, timestamp_ms)
+                height, width = frame.shape[:2]
+                csv_rows += write_result(
+                    writer,
+                    result,
+                    frame_index,
+                    timestamp_ms,
+                    width,
+                    height,
+                )
+                if output_file is not None:
+                    # Let another program inspect the CSV while capture continues.
+                    output_file.flush()
+
+                now = time.perf_counter()
+                instantaneous_fps = 1.0 / max(now - previous_frame_time, 1e-9)
+                previous_frame_time = now
+                smoothed_fps = (
+                    instantaneous_fps
+                    if smoothed_fps == 0.0
+                    else 0.9 * smoothed_fps + 0.1 * instantaneous_fps
+                )
+
                 if not args.no_display:
-                    draw_result(frame, result, cv2)
-                    status = "TRACKED" if result.hand_landmarks else "NO HAND"
-                    color = (80, 220, 120) if result.hand_landmarks else (40, 80, 255)
-                    cv2.putText(
+                    draw_result(frame, result, vision, cv2)
+                    draw_status(
                         frame,
-                        status,
-                        (16, 32),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8,
-                        color,
-                        2,
-                        cv2.LINE_AA,
+                        result,
+                        smoothed_fps,
+                        csv_rows,
+                        output_path is not None,
+                        cv2,
                     )
-                    cv2.imshow("HAND MediaPipe onboarding — q to quit", frame)
+                    cv2.imshow("HAND MediaPipe Tasks live tracking", frame)
                     if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
                         break
+
+                if frame_index % 30 == 0:
+                    print(
+                        f"frame={frame_index:<6} "
+                        f"hands={len(result.hand_landmarks)} "
+                        f"csv_rows={csv_rows:<8} "
+                        f"{first_index_tip_text(result)}"
+                    )
 
                 frame_index += 1
                 if args.max_frames is not None and frame_index >= args.max_frames:
@@ -271,8 +409,8 @@ def run(args: argparse.Namespace) -> int:
             cv2.destroyAllWindows()
 
     print(f"Processed {frame_index} frames.")
-    if args.output:
-        print(f"Wrote landmark data to {args.output}.")
+    if output_path is not None:
+        print(f"Wrote {csv_rows} CSV rows to {output_path.resolve()}.")
     return 0
 
 

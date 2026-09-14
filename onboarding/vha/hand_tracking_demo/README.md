@@ -3,41 +3,32 @@
 This hardware-free demo uses MediaPipe and OpenCV to detect 21 hand
 landmarks from a laptop webcam, a video file, or a phone-camera stream. It is
 deliberately independent of ROS: the first goal is to understand the camera
-data and tracking-loss behavior.
+data and tracking-loss behavior. 
 
 ## Setup
 
-Use Python 3.10 or 3.11 from the repository root:
+Work through the setup steps provided in the Jupyter notebook 
+`hand_tracking_onboarding.ipynb`. (you might need to restart your kernel after
+cell 1 is run.)
 
-```bash
-python3 -m venv .venv-vha
-source .venv-vha/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r onboarding/vha/hand_tracking_demo/requirements.txt
-```
-
-On Windows PowerShell, activate with:
-
-```powershell
-.\.venv-vha\Scripts\Activate.ps1
-```
 
 ## Run
 
 Laptop webcam:
 
 ```bash
-python onboarding/vha/hand_tracking_demo/hand_tracking_demo.py \
-  --source 0 \
-  --output hand_landmarks.csv
-```
+cd /Users/egopez/Cowork/HAND/onboarding/vha/hand_tracking_demo
+source .venv/bin/activate
+python hand_tracking_demo.py
 ```
 
-A phone-camera app that exposes an HTTP video URL can be used by passing that
-URL to `--source`. The exact phone app is intentionally not prescribed.
+If you want a custom output path, 
+run:
+```bash
+python hand_tracking_demo.py --output recordings/test.csv
+```
 
-The first run downloads Google's pinned Hand Landmarker model into the ignored
-`models/` directory. Press `q` or Escape to stop.
+
 
 ## What to observe
 
