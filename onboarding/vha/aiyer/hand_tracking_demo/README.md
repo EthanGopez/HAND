@@ -30,6 +30,24 @@ python hand_tracking_demo.py --output recordings/test.csv
 
 
 
+## Jitter smoothing (One Euro filter)
+
+Landmarks are smoothed with a One Euro filter before they are drawn or written
+to the CSV. It is exponential smoothing whose strength adapts to speed: a
+still hand is heavily smoothed to remove jitter, while a fast-moving hand is
+lightly smoothed so it does not lag. Each landmark's normalized and world
+`x`, `y`, `z` gets its own filter, per hand (keyed by Left/Right). A hand's
+filters reset when it leaves the frame.
+
+```bash
+python hand_tracking_demo.py --no-smoothing           # raw MediaPipe output, for comparison
+python hand_tracking_demo.py --min-cutoff 0.5         # still hand jitters -> lower this
+python hand_tracking_demo.py --beta 20                # fast motion lags -> raise this
+```
+
+Tune `--min-cutoff` first with your hand held still, then raise `--beta`
+until quick movements stop trailing behind.
+
 ## What to observe
 
 1. Move one hand slowly and then quickly.

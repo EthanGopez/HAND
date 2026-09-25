@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 from pathlib import Path
 import sys
 import time
+from types import SimpleNamespace
 from typing import Any
 from urllib.request import urlopen
 
@@ -36,6 +38,134 @@ CSV_FIELDS = (
     "world_y_m",
     "world_z_m",
 )
+
+# One Euro filter defaults, tuned for normalized image coordinates (0..1) and
+# world coordinates in meters, which both move on the order of 1 unit/second.
+DEFAULT_MIN_CUTOFF = 1.0
+DEFAULT_BETA = 10.0
+DEFAULT_D_CUTOFF = 1.0
+
+
+def smoothing_factor(cutoff_hz: float, dt_s: float) -> float:
+    """Exponential smoothing alpha for a first-order low-pass filter."""
+    tau = 1.0 / (2.0 * math.pi * cutoff_hz)
+    return 1.0 / (1.0 + tau / dt_s)
+
+
+class OneEuroFilter:
+    """Speed-adaptive exponential smoothing for one scalar signal.
+
+    Casiez et al., "1 Euro Filter" (CHI 2012). At low speed the cutoff stays
+    near ``min_cutoff`` to remove jitter; as speed rises the cutoff grows by
+    ``beta * |speed|`` so fast motion is followed with little lag.
+    """
+
+    def __init__(self, min_cutoff: float, beta: float, d_cutoff: float) -> None:
+        self.min_cutoff = min_cutoff
+        self.beta = beta
+        self.d_cutoff = d_cutoff
+        self.x_prev: float | None = None
+        self.dx_prev = 0.0
+        self.t_prev = 0.0
+
+    def __call__(self, x: float, t_s: float) -> float:
+        if self.x_prev is None:
+            self.x_prev = x
+            self.t_prev = t_s
+            return x
+
+        dt_s = t_s - self.t_prev
+        if dt_s <= 0.0:
+            return self.x_prev
+
+        # Smooth the derivative, then use its magnitude to pick the cutoff.
+        dx = (x - self.x_prev) / dt_s
+        a_d = smoothing_factor(self.d_cutoff, dt_s)
+        dx_hat = a_d * dx + (1.0 - a_d) * self.dx_prev
+
+        cutoff = self.min_cutoff + self.beta * abs(dx_hat)
+        a = smoothing_factor(cutoff, dt_s)
+        x_hat = a * x + (1.0 - a) * self.x_prev
+
+        self.x_prev = x_hat
+        self.dx_prev = dx_hat
+        self.t_prev = t_s
+        return x_hat
+
+
+class HandSmoother:
+    """One Euro filters for every landmark coordinate of every tracked hand.
+
+    Filters are keyed by handedness label rather than by MediaPipe's hand
+    index, because the index order can swap between frames when two hands are
+    visible. A hand's filters are dropped when it leaves the frame so it does
+    not glide in from its old position when it reappears.
+    """
+
+    def __init__(self, min_cutoff: float, beta: float, d_cutoff: float) -> None:
+        self.min_cutoff = min_cutoff
+        self.beta = beta
+        self.d_cutoff = d_cutoff
+        self.filters: dict[str, list[list[OneEuroFilter]]] = {}
+
+    def _new_hand_filters(self, landmark_count: int) -> list[list[OneEuroFilter]]:
+        # Six filters per landmark: normalized x, y, z and world x, y, z.
+        return [
+            [
+                OneEuroFilter(self.min_cutoff, self.beta, self.d_cutoff)
+                for _ in range(6)
+            ]
+            for _ in range(landmark_count)
+        ]
+
+    def __call__(self, result: Any, timestamp_ms: int) -> Any:
+        """Return a result-like object whose landmarks have been smoothed."""
+        t_s = timestamp_ms / 1000.0
+        hand_landmarks = []
+        hand_world_landmarks = []
+        seen_keys = set()
+
+        for hand_index, landmarks in enumerate(result.hand_landmarks):
+            key = result.handedness[hand_index][0].category_name
+            if key in seen_keys:
+                # Two hands reported with the same label; keep them separate.
+                key = f"{key}_{hand_index}"
+            seen_keys.add(key)
+
+            world_landmarks = result.hand_world_landmarks[hand_index]
+            filters = self.filters.get(key)
+            if filters is None or len(filters) != len(landmarks):
+                filters = self.filters[key] = self._new_hand_filters(len(landmarks))
+
+            smoothed = []
+            smoothed_world = []
+            for landmark, world_landmark, f in zip(landmarks, world_landmarks, filters):
+                smoothed.append(
+                    SimpleNamespace(
+                        x=f[0](landmark.x, t_s),
+                        y=f[1](landmark.y, t_s),
+                        z=f[2](landmark.z, t_s),
+                    )
+                )
+                smoothed_world.append(
+                    SimpleNamespace(
+                        x=f[3](world_landmark.x, t_s),
+                        y=f[4](world_landmark.y, t_s),
+                        z=f[5](world_landmark.z, t_s),
+                    )
+                )
+            hand_landmarks.append(smoothed)
+            hand_world_landmarks.append(smoothed_world)
+
+        for key in list(self.filters):
+            if key not in seen_keys:
+                del self.filters[key]
+
+        return SimpleNamespace(
+            hand_landmarks=hand_landmarks,
+            hand_world_landmarks=hand_world_landmarks,
+            handedness=result.handedness,
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -83,7 +213,38 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Stop after this many frames; useful for a quick smoke test.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--no-smoothing",
+        action="store_true",
+        help="Disable One Euro filtering and use raw MediaPipe landmarks.",
+    )
+    parser.add_argument(
+        "--min-cutoff",
+        type=float,
+        default=DEFAULT_MIN_CUTOFF,
+        help="One Euro minimum cutoff in Hz; lower removes more jitter at rest "
+        f"but adds lag (default: {DEFAULT_MIN_CUTOFF}).",
+    )
+    parser.add_argument(
+        "--beta",
+        type=float,
+        default=DEFAULT_BETA,
+        help="One Euro speed coefficient; higher reduces lag during fast "
+        f"motion (default: {DEFAULT_BETA}).",
+    )
+    parser.add_argument(
+        "--d-cutoff",
+        type=float,
+        default=DEFAULT_D_CUTOFF,
+        help=f"One Euro derivative cutoff in Hz (default: {DEFAULT_D_CUTOFF}).",
+    )
+    args = parser.parse_args()
+    for name in ("min_cutoff", "d_cutoff"):
+        if getattr(args, name) <= 0:
+            parser.error(f"--{name.replace('_', '-')} must be greater than 0.")
+    if args.beta < 0:
+        parser.error("--beta must be 0 or greater.")
+    return args
 
 
 def resolve_source(value: str) -> int | str:
@@ -327,8 +488,20 @@ def run(args: argparse.Namespace) -> int:
     last_timestamp_ms = -1
     previous_frame_time = time.perf_counter()
     smoothed_fps = 0.0
+    smoother = (
+        None
+        if args.no_smoothing
+        else HandSmoother(args.min_cutoff, args.beta, args.d_cutoff)
+    )
 
     print(f"MediaPipe {mp.__version__}; model: {args.model}")
+    if smoother is None:
+        print("Landmark smoothing: off")
+    else:
+        print(
+            f"Landmark smoothing: One Euro (min_cutoff={args.min_cutoff}, "
+            f"beta={args.beta}, d_cutoff={args.d_cutoff})"
+        )
     if output_path is not None:
         print(f"Recording live landmark rows to: {output_path.resolve()}")
     print("Press q or Esc in the video window to stop.")
@@ -353,6 +526,9 @@ def run(args: argparse.Namespace) -> int:
                     data=rgb_frame,
                 )
                 result = landmarker.detect_for_video(mp_image, timestamp_ms)
+                if smoother is not None:
+                    # Everything downstream (CSV, overlay, logs) sees smoothed landmarks.
+                    result = smoother(result, timestamp_ms)
 
                 height, width = frame.shape[:2]
                 csv_rows += write_result(
