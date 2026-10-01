@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>HAND ROS Tutorials: How the xArm Stack Works</title>
+  <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">body{max-width:860px;margin:2rem auto;padding:0 1rem;font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;color:#1f2328;background:#fff}
+h1,h2,h3{line-height:1.25}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3em}h2{border-bottom:1px solid #eaeef2;padding-bottom:.3em;margin-top:2rem}
+code{background:#f3f4f6;padding:.15em .35em;border-radius:4px;font-size:.9em}
+pre{background:#f6f8fa;padding:1rem;border-radius:6px;overflow-x:auto}pre code{background:none;padding:0}
+table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}th,td{border:1px solid #d0d7de;padding:.4rem .7rem;text-align:left;vertical-align:top}th{background:#f6f8fa}
+blockquote{margin:1rem 0;padding:.5rem 1rem;border-left:4px solid #d4a72c;background:#fff8c5}a{color:#0969da}
+@media (prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}code,pre{background:#161b22}th{background:#161b22}th,td{border-color:#30363d}h1,h2{border-color:#30363d}blockquote{background:#2b2111;border-color:#d4a72c}a{color:#4493f8}}
+</style>
+</head>
+<body>
+<h1 id="hand-ros-tutorials-how-the-xarm-stack-works">HAND ROS Tutorials:
+How the xArm Stack Works</h1>
+<p><strong>Two ways to read these:</strong> open the <code>.md</code>
+files on GitHub or in VS Code (right-click → Open Preview), or
+double-click the matching file in the <code>html/</code> folder to read
+it in any browser.</p>
+<p>Plain-English tutorials for the UFACTORY <code>xarm_ros2</code>
+packages that HAND builds on (pinned at
+<code>ros_ws/src/xarm_ros2</code>, commit <code>62936f7</code>). They
+explain what runs, how the pieces talk to each other, and how a command
+becomes arm motion, with commands you can run in the HAND dev container
+to see it happen.</p>
+<p>Everything is simulation-only. Never pass a
+<code>robot_ip</code>.</p>
+<h2 id="reading-order">Reading order</h2>
+<table>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Tutorial</th>
+<th>What you&#39;ll understand</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td><a href="00-start-here.html">Start Here</a></td>
+<td>ROS 2 basics (nodes, topics, services, actions, TF, URDF),
+ros2_control, fake vs Gazebo vs real, building the workspace</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td><a href="01-moveit-config.html"><code>xarm_moveit_config</code></a></td>
+<td>MoveIt: how a click in RViz becomes a planned, executed motion</td>
+</tr>
+<tr class="odd">
+<td>2</td>
+<td><a href="02-gazebo.html"><code>xarm_gazebo</code></a></td>
+<td>The physics simulator, controllers inside Gazebo, sim time</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td><a href="03-planner.html"><code>xarm_planner</code></a></td>
+<td>Moving the arm from your own code with plan/execute services</td>
+</tr>
+<tr class="odd">
+<td>4</td>
+<td><a href="04-servo.html"><code>xarm_moveit_servo</code></a></td>
+<td>Live, continuous steering (what hand teleop will use)</td>
+</tr>
+<tr class="even">
+<td>5</td>
+<td><a href="05-hands-on-check.html">Hands-on check</a></td>
+<td>Launch the fake arm, read a topic and a transform, move it, post a
+screenshot</td>
+</tr>
+</tbody>
+</table>
+<p>Do Tutorial 5 (the hands-on check) right after Tutorial 0.</p>
+<h2 id="which-tutorials-matter-for-which-hand-package">Which tutorials
+matter for which HAND package</h2>
+<p>Everyone reads 0 and 1. Then:</p>
+<table>
+<thead>
+<tr class="header">
+<th>HAND package</th>
+<th>Also read</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>hand_teleop</code></td>
+<td>4 (Servo), then 3</td>
+</tr>
+<tr class="even">
+<td><code>hand_bringup</code></td>
+<td>2, 4</td>
+</tr>
+<tr class="odd">
+<td><code>hand_vision</code></td>
+<td>4, section 5 (how commands are streamed)</td>
+</tr>
+<tr class="even">
+<td><code>hand_interfaces</code></td>
+<td>3 and 4 (look at the message types each one uses)</td>
+</tr>
+<tr class="odd">
+<td><code>hand_gripper_bridge</code></td>
+<td>3, section 7 (how the xArm&#39;s own gripper is commanded, for
+contrast)</td>
+</tr>
+<tr class="even">
+<td><code>hand_feedback</code></td>
+<td>0 is enough to start</td>
+</tr>
+</tbody>
+</table>
+<h2 id="container-quick-reference">Container quick reference</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/bootstrap_ros_workspace.sh</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/build_ros_workspace.sh</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /workspace/ros_ws/install/setup.bash     <span class="co"># every new terminal</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DISPLAY</span><span class="op">=</span>:1                               <span class="co"># before any ros2 launch you run yourself</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/launch_fake_xarm.sh     <span class="co"># fake arm + planner services (view-only RViz)</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/launch_gazebo_xarm.sh   <span class="co"># Gazebo + MoveIt</span></span></code></pre></div>
+<p>Desktop:
+<code>http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code></p>
+<p>The commands and names in these tutorials were checked against the
+pinned <code>xarm_ros2</code> source. If something doesn&#39;t match what
+you see, open an issue or tell the VHA lead.</p>
+</body>
+</html>

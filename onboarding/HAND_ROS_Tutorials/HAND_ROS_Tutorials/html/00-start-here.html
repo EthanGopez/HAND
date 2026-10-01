@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Tutorial 0: Start Here ��� How the xArm ROS 2 Stack Fits Together</title>
+  <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">body{max-width:860px;margin:2rem auto;padding:0 1rem;font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;color:#1f2328;background:#fff}
+h1,h2,h3{line-height:1.25}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3em}h2{border-bottom:1px solid #eaeef2;padding-bottom:.3em;margin-top:2rem}
+code{background:#f3f4f6;padding:.15em .35em;border-radius:4px;font-size:.9em}
+pre{background:#f6f8fa;padding:1rem;border-radius:6px;overflow-x:auto}pre code{background:none;padding:0}
+table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}th,td{border:1px solid #d0d7de;padding:.4rem .7rem;text-align:left;vertical-align:top}th{background:#f6f8fa}
+blockquote{margin:1rem 0;padding:.5rem 1rem;border-left:4px solid #d4a72c;background:#fff8c5}a{color:#0969da}
+@media (prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}code,pre{background:#161b22}th{background:#161b22}th,td{border-color:#30363d}h1,h2{border-color:#30363d}blockquote{background:#2b2111;border-color:#d4a72c}a{color:#4493f8}}
+</style>
+</head>
+<body>
+<h1 id="tutorial-0-start-here--how-the-xarm-ros-2-stack-fits-together">Tutorial
+0: Start Here — How the xArm ROS 2 Stack Fits Together</h1>
+<p>This series explains the four packages from <code>xarm_ros2</code>
+(humble branch) that our work is built on:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Tutorial</th>
+<th>Package</th>
+<th>One-line summary</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>1</strong></td>
+<td><code>xarm_moveit_config</code></td>
+<td>The &quot;brain&quot;: MoveIt setup that plans motions and sends them to the
+arm</td>
+</tr>
+<tr class="even">
+<td><strong>2</strong></td>
+<td><code>xarm_gazebo</code></td>
+<td>A physics simulator the arm can live in instead of the real
+world</td>
+</tr>
+<tr class="odd">
+<td><strong>3</strong></td>
+<td><code>xarm_planner</code></td>
+<td>A simple service/API layer so your code can say &quot;go here&quot; without
+writing MoveIt code</td>
+</tr>
+<tr class="even">
+<td><strong>4</strong></td>
+<td><code>xarm_moveit_servo</code></td>
+<td>Real-time jogging: steer the arm live with a joystick, keyboard or
+your own code</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>HAND team notes (read first)</strong></p>
+<ul>
+<li>Everything here runs inside the <strong>HAND dev container</strong>.
+View RViz and Gazebo at
+<code>http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code>.</li>
+<li>Every new terminal:
+<code>source /workspace/ros_ws/install/setup.bash</code>. If you run
+<code>ros2 launch</code> yourself (instead of a
+<code>scripts/launch_*.sh</code> script), also run
+<code>export DISPLAY=:1</code> first or windows won&#39;t appear in
+VNC.</li>
+<li><strong>Never pass a <code>robot_ip</code> or run a
+<code>*_realmove*</code> launch file.</strong> Real-arm sections are for
+understanding only; physical-arm operation needs the team&#39;s separate
+reviewed procedure.</li>
+</ul>
+</blockquote>
+<p>Read this page first. It explains the ROS vocabulary you need, in
+plain English, using the xArm as the example every time. Then do the
+tutorials in order: each one builds on the one before.</p>
+<hr />
+<h2 id="1-ros-2-in-plain-english">1. ROS 2 in plain English</h2>
+<p>ROS 2 is not an operating system. It&#39;s a set of conventions and
+libraries that let many small programs work together on one robot.
+Everything below is one of a handful of building blocks.</p>
+<h3 id="nodes-the-programs">Nodes: the programs</h3>
+<p>A <strong>node</strong> is one running program with one job. On our
+arm there&#39;s a node that plans motions (<code>move_group</code>), a node
+that draws the 3D view (<code>rviz2</code>), a node that calculates
+where every part of the arm is in space
+(<code>robot_state_publisher</code>), and so on. A normal session has 5
+to 15 of them running at once.</p>
+<p>You rarely start nodes one by one. A <strong>launch file</strong>
+starts a whole group of them with the right settings. When you type
+<code>ros2 launch xarm_moveit_config xarm6_moveit_fake.launch.py</code>,
+that one file starts about eight nodes.</p>
+<h3 id="topics-broadcasts">Topics: broadcasts</h3>
+<p>A <strong>topic</strong> is a named channel where one node shouts
+messages and any number of nodes listen. Nobody replies. It&#39;s for
+continuous streams of data.</p>
+<p>The most important topic on our arm is
+<strong><code>/joint_states</code></strong>. Many times a second,
+something publishes the current angle of every joint. Anything that
+needs to know where the arm is listens to it.</p>
+<h3 id="services-questions-with-one-answer">Services: questions with one
+answer</h3>
+<p>A <strong>service</strong> is a request/response call, like a
+function call between programs. You send a request, you wait, you get
+one reply.</p>
+<p>Example from Tutorial 3: you call <code>/xarm_joint_plan</code> with
+six joint angles, and it replies <code>success: true</code> or
+<code>false</code>.</p>
+<h3 id="actions-long-jobs-with-progress">Actions: long jobs with
+progress</h3>
+<p>An <strong>action</strong> is for jobs that take a while and might
+need to be cancelled, like &quot;move the arm along this path.&quot; You send a
+<strong>goal</strong>, you get <strong>feedback</strong> while it runs,
+and you get a <strong>result</strong> at the end.</p>
+<p>The arm&#39;s motion is almost always driven through the action
+<strong><code>/xarm6_traj_controller/follow_joint_trajectory</code></strong>:
+&quot;here is a list of joint positions with timestamps, please follow
+it.&quot;</p>
+<h3 id="parameters-settings">Parameters: settings</h3>
+<p><strong>Parameters</strong> are named settings attached to a node,
+like <code>use_sim_time: true</code> or a robot&#39;s joint speed limits.
+Launch files set them when they start the node.</p>
+<h3 id="tf-where-everything-is">TF: where everything is</h3>
+<p><strong>TF</strong> (&quot;transforms&quot;) is ROS&#39;s system for tracking
+coordinate frames. Each part of the arm has a frame: <code>world</code>,
+<code>link_base</code>, <code>link1</code> … <code>link6</code>,
+<code>link_eef</code> (end of the arm), <code>link_tcp</code> (tool
+center point, the tip of the gripper). TF answers questions like &quot;where
+is the gripper tip relative to the base right now?&quot;</p>
+<p><code>robot_state_publisher</code> produces TF by combining the arm&#39;s
+shape (the URDF, below) with the live <code>/joint_states</code>.</p>
+<h3 id="urdf-and-srdf-the-robots-description">URDF and SRDF: the robot&#39;s
+description</h3>
+<ul>
+<li><strong>URDF</strong> (Unified Robot Description Format) is an XML
+file describing the arm physically: every link, every joint, joint
+limits, 3D meshes, masses. It lives in <code>xarm_description</code>.
+Every package in this series reads it.</li>
+<li><strong>SRDF</strong> (Semantic Robot Description Format) is
+MoveIt&#39;s extra layer on top: which joints form the &quot;arm&quot; group, which
+form the &quot;gripper&quot; group, named poses like <code>home</code>, and which
+link pairs can never collide so MoveIt doesn&#39;t waste time checking them.
+It lives in <code>xarm_moveit_config/srdf/</code>.</li>
+</ul>
+<p>Both are written as <strong>xacro</strong> files: XML with variables
+and macros, so one file can describe an xArm5, 6 or 7, with or without a
+gripper.</p>
+<hr />
+<h2 id="2-ros2_control-how-commands-actually-reach-the-motors">2.
+ros2_control: how commands actually reach the motors</h2>
+<p>This is the piece that confuses people most, and it&#39;s what makes
+simulation and real hardware interchangeable.</p>
+<pre><code>   &quot;Follow this trajectory&quot;
+            │
+            ▼
+ ┌───────────────────────┐
+ │ Controller            │   e.g. xarm6_traj_controller
+ │ (JointTrajectory      │   Works out where each joint should be
+ │  Controller)          │   at each instant, 150–1000 times a second
+ └──────────┬────────────┘
+            │ position commands
+            ▼
+ ┌───────────────────────┐
+ │ Hardware interface    │   A plugin. Swappable!
+ │ (plugin)              │   • Fake: pretends, instantly &quot;reaches&quot; every command
+ └──────────┬────────────┘   • Real: talks to the xArm over the network
+            │                • Gazebo: moves the simulated arm
+            ▼
+     motors (or pretend motors)</code></pre>
+<ul>
+<li>The <strong>controller manager</strong>
+(<code>/controller_manager</code>) is a node that runs a fast loop: read
+joint states from the hardware, let each controller compute, write
+commands to the hardware.</li>
+<li><strong>Controllers</strong> are plugins loaded into it. We use two
+kinds:
+<ul>
+<li><strong><code>joint_state_broadcaster</code></strong> reads joint
+positions and publishes them on <code>/joint_states</code>.</li>
+<li><strong><code>JointTrajectoryController</code></strong> (JTC)
+accepts trajectories and follows them. Ours are named after the arm:
+<code>xarm6_traj_controller</code>,
+<code>xarm_gripper_traj_controller</code>, etc.</li>
+</ul></li>
+<li>The <strong>hardware interface</strong> is the bottom layer, chosen
+by a single setting:</li>
+</ul>
+<table>
+<thead>
+<tr class="header">
+<th>Mode</th>
+<th>Hardware plugin</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>fake</strong></td>
+<td><code>uf_robot_hardware/UFRobotFakeSystemHardware</code></td>
+<td>No robot. Commands are echoed back as the new position. Perfect for
+learning.</td>
+</tr>
+<tr class="even">
+<td><strong>real</strong> (&quot;realmove&quot;)</td>
+<td><code>uf_robot_hardware/UFRobotSystemHardware</code></td>
+<td>Connects to the arm at <code>robot_ip</code> and streams joint
+commands to it.</td>
+</tr>
+<tr class="odd">
+<td><strong>Gazebo</strong></td>
+<td><code>gazebo_ros2_control/GazeboSystem</code> (and gz variants)</td>
+<td>The simulator moves a physics model of the arm.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key idea:</strong> the controllers, MoveIt, the planner and
+servo don&#39;t know or care which one is underneath. That&#39;s why you can
+develop against fake or Gazebo and switch to the real arm by changing
+one launch file.</p>
+<hr />
+<h2 id="3-moveit-in-one-paragraph">3. MoveIt in one paragraph</h2>
+<p><strong>MoveIt</strong> is the motion-planning framework. Its main
+node, <strong><code>move_group</code></strong>, knows the robot&#39;s shape
+(URDF), its groups and collision rules (SRDF), how to do inverse
+kinematics (turn &quot;put the tip here&quot; into joint angles), and how to
+search for a collision-free path. When it has a plan, it hands the
+trajectory to the controller through the
+<code>follow_joint_trajectory</code> action. Tutorial 1 covers it in
+depth.</p>
+<hr />
+<h2 id="4-the-three-modes-side-by-side">4. The three modes, side by
+side</h2>
+<p>Every package in this series can run in these modes. The launch file
+name tells you which:</p>
+<table>
+<thead>
+<tr class="header">
+<th>File name contains</th>
+<th>Mode</th>
+<th>Needs a real arm?</th>
+<th>Physics?</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>_fake</code></td>
+<td>Fake hardware</td>
+<td>No</td>
+<td>No, joints just jump to commanded positions</td>
+</tr>
+<tr class="even">
+<td><code>_gazebo</code></td>
+<td>Gazebo simulation</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr class="odd">
+<td><code>_realmove</code></td>
+<td>Real arm</td>
+<td>Yes, pass <code>robot_ip:=...</code></td>
+<td>Real world (<strong>not used by HAND without a reviewed
+procedure</strong>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Always try new code in fake first, then Gazebo, then the real
+arm.</strong></p>
+<hr />
+<h2 id="5-naming-one-pattern-explains-most-names">5. Naming: one pattern
+explains most names</h2>
+<p>Almost every name is built from the arm model:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Arm</th>
+<th>Model name</th>
+<th>Arm controller</th>
+<th>Planning group</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>xArm 5 / 6 / 7</td>
+<td><code>xarm5</code> / <code>xarm6</code> / <code>xarm7</code></td>
+<td><code>xarm6_traj_controller</code></td>
+<td><code>xarm6</code></td>
+</tr>
+<tr class="even">
+<td>Lite 6</td>
+<td><code>lite6</code></td>
+<td><code>lite6_traj_controller</code></td>
+<td><code>lite6</code></td>
+</tr>
+<tr class="odd">
+<td>UFACTORY 850</td>
+<td><code>uf850</code></td>
+<td><code>uf850_traj_controller</code></td>
+<td><code>uf850</code></td>
+</tr>
+<tr class="even">
+<td>xArm 7 mirror</td>
+<td><code>xarm7_mirror</code></td>
+<td><code>xarm7_mirror_traj_controller</code></td>
+<td><code>xarm7_mirror</code></td>
+</tr>
+</tbody>
+</table>
+<p>Grippers: <code>xarm_gripper</code>, <code>uf850_gripper</code>,
+<code>bio_gripper</code>, <code>lite_gripper</code>.</p>
+<p>Launch files use the same vocabulary for their arguments:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Argument</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>dof</code></td>
+<td>Number of joints (5, 6, 7)</td>
+</tr>
+<tr class="even">
+<td><code>robot_type</code></td>
+<td><code>xarm</code>, <code>lite</code>, <code>uf850</code>,
+<code>xarm7_mirror</code></td>
+</tr>
+<tr class="odd">
+<td><code>add_gripper:=true</code></td>
+<td>Attach the xArm/Lite/850 gripper</td>
+</tr>
+<tr class="even">
+<td><code>add_bio_gripper:=true</code>,
+<code>add_vacuum_gripper:=true</code></td>
+<td>Other end effectors</td>
+</tr>
+<tr class="odd">
+<td><code>prefix:=L_</code></td>
+<td>Put <code>L_</code> in front of every name, used for two-arm
+setups</td>
+</tr>
+<tr class="even">
+<td><code>robot_ip:=192.168.1.xxx</code></td>
+<td>Real arm&#39;s address (realmove only)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The rest of this series uses the xArm 6</strong>
+(<code>xarm6</code>). For another arm, swap the name in the launch file
+(e.g. <code>lite6_moveit_fake.launch.py</code>) and in topic/controller
+names.</p>
+<hr />
+<h2 id="6-your-inspection-toolkit">6. Your inspection toolkit</h2>
+<p>Open a second container terminal (VS Code: <strong>Terminal → New
+Terminal</strong>) and
+<code>source /workspace/ros_ws/install/setup.bash</code>. These commands
+work with anything running. Keep them handy; each tutorial asks you to
+use them so you can <em>see</em> the stack instead of trusting a
+diagram.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> node list                         <span class="co"># every running program</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic list                        <span class="co"># every broadcast channel</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic echo /joint_states <span class="at">--once</span>   <span class="co"># print one message</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic hz /joint_states            <span class="co"># how often it&#39;s published</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> service list                      <span class="co"># every callable service</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> action list                       <span class="co"># every action server</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> control list_controllers          <span class="co"># controllers and whether they&#39;re active</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> run tf2_ros tf2_echo world link_eef   <span class="co"># live position of the arm&#39;s tip</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> run tf2_tools view_frames         <span class="co"># writes frames.pdf, a picture of the TF tree</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="ex">rqt_graph</span>                              <span class="co"># picture of nodes and topics</span></span></code></pre></div>
+<p><code>ros2 &lt;thing&gt; info &lt;name&gt;</code> works on nodes,
+topics, services and actions, and tells you who&#39;s talking to whom.</p>
+<hr />
+<h2 id="7-building-the-workspace-hand-dev-container">7. Building the
+workspace (HAND dev container)</h2>
+<p>The HAND repo already includes <code>xarm_ros2</code> as a submodule
+pinned to the tested commit, and scripts that do the setup for you.</p>
+<ol type="1">
+<li><p>Install Docker and VS Code with the Dev Containers
+extension.</p></li>
+<li><p>Clone with submodules:
+<code>git clone --recurse-submodules &lt;HAND repository URL&gt;</code></p></li>
+<li><p>Open the repo in VS Code and choose <strong>Dev Containers:
+Rebuild and Reopen in Container</strong>.</p></li>
+<li><p>In a container terminal:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/bootstrap_ros_workspace.sh   <span class="co"># fetches pinned xarm_ros2 + its SDK, installs dependencies</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/build_ros_workspace.sh       <span class="co"># colcon build</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /workspace/ros_ws/install/setup.bash          <span class="co"># do this in EVERY new terminal</span></span></code></pre></div></li>
+<li><p>Launch something:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/launch_fake_xarm.sh     <span class="co"># light: fake hardware + planner services (Tutorial 3)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/launch_gazebo_xarm.sh   <span class="co"># heavy: Gazebo + MoveIt (Tutorials 1 and 2)</span></span></code></pre></div></li>
+<li><p>Open the desktop in a browser:
+<code>http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code>
+(or TigerVNC Viewer at <code>localhost:5901</code>).</p></li>
+</ol>
+<p>Gazebo uses software rendering in this container, so it&#39;s slow on
+weaker laptops. Use the fake launch if Gazebo struggles.</p>
+<h2 id="if-a-command-says-package-not-found-you-forgot-source-workspaceros_wsinstallsetupbash-in-that-terminal-if-a-window-doesnt-appear-run-export-display1-in-that-terminal">If
+a command says &quot;package not found,&quot; you forgot
+<code>source /workspace/ros_ws/install/setup.bash</code> in that
+terminal. If a window doesn&#39;t appear, run <code>export DISPLAY=:1</code>
+in that terminal.</h2>
+<h2 id="8-glossary">8. Glossary</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Term</th>
+<th>Plain English</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Node</strong></td>
+<td>One running program</td>
+</tr>
+<tr class="even">
+<td><strong>Launch file</strong></td>
+<td>A script that starts many nodes with the right settings</td>
+</tr>
+<tr class="odd">
+<td><strong>Topic</strong></td>
+<td>A broadcast channel; one-way, continuous</td>
+</tr>
+<tr class="even">
+<td><strong>Service</strong></td>
+<td>A request with one reply</td>
+</tr>
+<tr class="odd">
+<td><strong>Action</strong></td>
+<td>A long-running job with feedback and a final result;
+cancellable</td>
+</tr>
+<tr class="even">
+<td><strong>Parameter</strong></td>
+<td>A setting on a node</td>
+</tr>
+<tr class="odd">
+<td><strong>TF / frame</strong></td>
+<td>A coordinate system attached to a part of the robot</td>
+</tr>
+<tr class="even">
+<td><strong>URDF</strong></td>
+<td>The robot&#39;s physical description</td>
+</tr>
+<tr class="odd">
+<td><strong>SRDF</strong></td>
+<td>MoveIt&#39;s semantic layer: groups, named poses, collision
+shortcuts</td>
+</tr>
+<tr class="even">
+<td><strong>xacro</strong></td>
+<td>XML with variables, used to generate URDF/SRDF</td>
+</tr>
+<tr class="odd">
+<td><strong>ros2_control</strong></td>
+<td>The framework that runs controllers and talks to hardware</td>
+</tr>
+<tr class="even">
+<td><strong>Controller</strong></td>
+<td>A plugin that turns goals into motor commands every cycle</td>
+</tr>
+<tr class="odd">
+<td><strong>Hardware interface</strong></td>
+<td>The swappable bottom layer: fake, real or simulated</td>
+</tr>
+<tr class="even">
+<td><strong>JTC</strong></td>
+<td>Joint Trajectory Controller; follows a timed list of joint
+positions</td>
+</tr>
+<tr class="odd">
+<td><strong>MoveIt / move_group</strong></td>
+<td>The motion planner</td>
+</tr>
+<tr class="even">
+<td><strong>IK</strong></td>
+<td>Inverse kinematics; &quot;what joint angles put the tip here?&quot;</td>
+</tr>
+<tr class="odd">
+<td><strong>Planning group</strong></td>
+<td>A named set of joints MoveIt plans for together (<code>xarm6</code>,
+<code>xarm_gripper</code>)</td>
+</tr>
+<tr class="even">
+<td><strong>TCP</strong></td>
+<td>Tool Center Point; the working tip of the tool
+(<code>link_tcp</code>)</td>
+</tr>
+<tr class="odd">
+<td><strong>Servo</strong></td>
+<td>Continuous small moves in real time, instead of
+plan-then-execute</td>
+</tr>
+<tr class="even">
+<td><strong>Sim time</strong></td>
+<td>In Gazebo, ROS nodes use the simulator&#39;s clock (<code>/clock</code>)
+instead of the wall clock</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Next: <a href="01-moveit-config.html">Tutorial 1 —
+xarm_moveit_config</a></strong></p>
+</body>
+</html>

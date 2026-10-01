@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Tutorial 1: xarm_moveit_config ��� MoveIt, the Arm&#39;s Planning Brain</title>
+  <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">body{max-width:860px;margin:2rem auto;padding:0 1rem;font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;color:#1f2328;background:#fff}
+h1,h2,h3{line-height:1.25}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3em}h2{border-bottom:1px solid #eaeef2;padding-bottom:.3em;margin-top:2rem}
+code{background:#f3f4f6;padding:.15em .35em;border-radius:4px;font-size:.9em}
+pre{background:#f6f8fa;padding:1rem;border-radius:6px;overflow-x:auto}pre code{background:none;padding:0}
+table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}th,td{border:1px solid #d0d7de;padding:.4rem .7rem;text-align:left;vertical-align:top}th{background:#f6f8fa}
+blockquote{margin:1rem 0;padding:.5rem 1rem;border-left:4px solid #d4a72c;background:#fff8c5}a{color:#0969da}
+@media (prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}code,pre{background:#161b22}th{background:#161b22}th,td{border-color:#30363d}h1,h2{border-color:#30363d}blockquote{background:#2b2111;border-color:#d4a72c}a{color:#4493f8}}
+</style>
+</head>
+<body>
+<h1 id="tutorial-1-xarm_moveit_config--moveit-the-arms-planning-brain">Tutorial
+1: <code>xarm_moveit_config</code> — MoveIt, the Arm&#39;s Planning
+Brain</h1>
+<p><strong>You&#39;ll learn:</strong> what MoveIt does for the xArm, what
+starts when you launch it, how a click in RViz becomes motor motion,
+which config files control what, and how the same setup runs on fake
+hardware, in Gazebo and on the real arm.</p>
+<p><strong>Prerequisites:</strong> <a href="00-start-here.html">Tutorial
+0</a>, a built and sourced workspace.</p>
+<blockquote>
+<p><strong>HAND team notes (read first)</strong></p>
+<ul>
+<li>Everything here runs inside the <strong>HAND dev container</strong>.
+View RViz and Gazebo at
+<code>http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code>.</li>
+<li>Every new terminal:
+<code>source /workspace/ros_ws/install/setup.bash</code>. If you run
+<code>ros2 launch</code> yourself (instead of a
+<code>scripts/launch_*.sh</code> script), also run
+<code>export DISPLAY=:1</code> first or windows won&#39;t appear in
+VNC.</li>
+<li><strong>Never pass a <code>robot_ip</code> or run a
+<code>*_realmove*</code> launch file.</strong> Real-arm sections are for
+understanding only; physical-arm operation needs the team&#39;s separate
+reviewed procedure.</li>
+</ul>
+</blockquote>
+<hr />
+<h2 id="1-what-this-package-is">1. What this package is</h2>
+<p><code>xarm_moveit_config</code> is a <strong>MoveIt configuration
+package</strong>. It has almost no code of its own. It&#39;s a bundle of
+settings and launch files that tells MoveIt everything it needs about
+the UFACTORY arms:</p>
+<ul>
+<li>which joints make up the arm and the gripper (planning groups)</li>
+<li>named poses you can ask for by name</li>
+<li>joint speed and acceleration limits</li>
+<li>which inverse-kinematics solver to use</li>
+<li>which motion-planning algorithms are available</li>
+<li>which controllers to send finished trajectories to</li>
+</ul>
+<p>Every other package in this series depends on it.
+<code>xarm_planner</code> and <code>xarm_moveit_servo</code> both reuse
+its settings, and its Gazebo launch files are how you drive the
+simulator with MoveIt.</p>
+<hr />
+<h2 id="2-try-it-first-fake-mode">2. Try it first: fake mode</h2>
+<p>Fake mode needs no robot and no simulator. The &quot;hardware&quot; instantly
+reaches every commanded position, so you can focus on how the pieces
+connect.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DISPLAY</span><span class="op">=</span>:1</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch xarm_moveit_config xarm6_moveit_fake.launch.py</span></code></pre></div>
+<p><strong>HAND note:</strong> use this command, not
+<code>scripts/launch_fake_xarm.sh</code>. That script launches the
+planner version (Tutorial 3), whose RViz is view-only and has no
+planning panel.</p>
+<p>RViz opens with an xArm 6 standing at the origin. Let&#39;s move it.</p>
+<h3 id="plan-and-execute-in-rviz">Plan and execute in RViz</h3>
+<ol type="1">
+<li>On the left, find the <strong>MotionPlanning</strong> panel and open
+the <strong>Planning</strong> tab.</li>
+<li>Check that <strong>Planning Group</strong> says
+<code>xarm6</code>.</li>
+<li>Under <strong>Goal State</strong>, choose <code>hold-up</code> from
+the dropdown. A ghost (orange) arm appears in that pose.</li>
+<li>Click <strong>Plan</strong>. An animated preview of the path
+plays.</li>
+<li>Click <strong>Execute</strong>. The arm follows the path.</li>
+<li>Now drag the arm&#39;s tip by its <strong>interactive marker</strong>
+(the coloured arrows and rings on the end of the arm) to a new spot,
+then click <strong>Plan &amp; Execute</strong>.</li>
+<li>Set the Goal State back to <code>home</code> and <strong>Plan &amp;
+Execute</strong> again.</li>
+</ol>
+<p>You just used the full stack. The rest of this tutorial explains what
+happened underneath.</p>
+<h3 id="look-at-whats-running">Look at what&#39;s running</h3>
+<p>Open a second terminal (remember
+<code>source /workspace/ros_ws/install/setup.bash</code>):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> node list</span></code></pre></div>
+<p>You&#39;ll see roughly:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Node</th>
+<th>Job</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>/move_group</code></td>
+<td>MoveIt: plans paths and oversees their execution</td>
+</tr>
+<tr class="even">
+<td><code>/rviz2</code></td>
+<td>The 3D window and planning panel</td>
+</tr>
+<tr class="odd">
+<td><code>/robot_state_publisher</code></td>
+<td>Publishes TF for every link, from <code>/joint_states</code> +
+URDF</td>
+</tr>
+<tr class="even">
+<td><code>/static_transform_publisher</code></td>
+<td>Publishes the fixed <code>world</code> → <code>link_base</code>
+frame</td>
+</tr>
+<tr class="odd">
+<td><code>/controller_manager</code></td>
+<td>ros2_control: runs controllers and the fake hardware</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>spawner</code> nodes you may see briefly load controllers
+and then exit.</p>
+<p>Now look at the controllers:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> control list_controllers</span></code></pre></div>
+<pre><code>joint_state_broadcaster  joint_state_broadcaster/JointStateBroadcaster  active
+xarm6_traj_controller    joint_trajectory_controller/JointTrajectoryController  active</code></pre>
+<p>And watch the joint angles change as you execute moves in RViz:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic echo /joint_states</span></code></pre></div>
+<hr />
+<h2 id="3-what-happened-when-you-clicked-plan--execute">3. What happened
+when you clicked &quot;Plan &amp; Execute&quot;</h2>
+<pre><code> RViz MotionPlanning panel
+     │  goal: &quot;xarm6 group to this pose&quot;          (action /move_action)
+     ▼
+ move_group
+     │  1. IK: pose → joint angles                (KDL solver, kinematics.yaml)
+     │  2. Plan a collision-free path             (OMPL, RRTConnect by default)
+     │  3. Add timing within speed limits         (joint_limits.yaml)
+     │  4. Hand trajectory to the controller      (action /xarm6_traj_controller/follow_joint_trajectory)
+     ▼
+ xarm6_traj_controller  (inside controller_manager, 150 Hz loop)
+     │  interpolates the trajectory, sends a position for every joint every cycle
+     ▼
+ hardware interface  (fake: just copies command → state)
+     │
+     ▼
+ joint_state_broadcaster → /joint_states → robot_state_publisher → /tf → RViz redraws
+                                         └──────────────────────→ move_group (knows where the arm is)</code></pre>
+<p>Step by step:</p>
+<ol type="1">
+<li><strong>RViz sends a goal.</strong> The MotionPlanning panel is a
+client of <code>move_group</code>&#39;s <code>/move_action</code> action.
+The goal says which group (<code>xarm6</code>), where the start is (the
+current state), and where the goal is.</li>
+<li><strong>move_group does inverse kinematics.</strong> If you dragged
+the marker, you gave a <em>pose</em> (position + orientation of the
+tip). The KDL solver works out joint angles that put the tip there.</li>
+<li><strong>move_group plans.</strong> OMPL, a library of sampling-based
+planners, searches for a path from the current joint angles to the goal
+that doesn&#39;t hit the arm itself or anything in the planning scene.
+Default algorithm: RRTConnect.</li>
+<li><strong>move_group times the path.</strong> A raw path is just a
+list of poses. MoveIt adds timestamps so no joint exceeds its
+velocity/acceleration limits. This package&#39;s RViz layout starts with
+velocity and acceleration scaling at 10% of those limits; the scaling
+sliders in the Planning tab change that.</li>
+<li><strong>move_group executes.</strong> It sends the timed trajectory
+to the controller named in its controller config, using the
+<code>FollowJointTrajectory</code> action, and monitors it until the
+controller reports success.</li>
+<li><strong>The controller drives the joints.</strong>
+<code>xarm6_traj_controller</code> runs every cycle (150 times a second
+here), figures out where each joint should be <em>right now</em> along
+the trajectory, and writes that to the hardware.</li>
+<li><strong>The state flows back.</strong>
+<code>joint_state_broadcaster</code> publishes
+<code>/joint_states</code>, <code>robot_state_publisher</code> turns it
+into TF, RViz redraws, and <code>move_group</code> updates its idea of
+where the arm is.</li>
+</ol>
+<h3 id="do-it-without-rviz">Do it without RViz</h3>
+<p>To prove the controller is independent of MoveIt, send it a
+trajectory yourself. This moves joint 1 to 0.5 rad over 3 seconds:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> action send_goal /xarm6_traj_controller/follow_joint_trajectory <span class="dt">\</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  control_msgs/action/FollowJointTrajectory <span class="dt">\</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;{trajectory: {joint_names: [joint1, joint2, joint3, joint4, joint5, joint6],</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="st">    points: [{positions: [0.5, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 3}}]}}&quot;</span></span></code></pre></div>
+<p>The arm in RViz turns. This is exactly the message
+<code>move_group</code> sends, just with one point instead of hundreds.
+<strong>Only do this in fake mode.</strong> There&#39;s no collision
+checking at this level.</p>
+<hr />
+<h2 id="4-the-three-launch-modes">4. The three launch modes</h2>
+<p>The same package launches three ways. Only the bottom layer
+changes.</p>
+<h3 id="fake">Fake</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch xarm_moveit_config xarm6_moveit_fake.launch.py <span class="pp">[</span><span class="ss">add_gripper:=true</span><span class="pp">]</span></span></code></pre></div>
+<p>Hardware is <code>UFRobotFakeSystemHardware</code>. Everything else
+is as described above.</p>
+<h3 id="real-arm-reference-only--hand-does-not-run-this-without-a-reviewed-procedure">Real
+arm (reference only — HAND does not run this without a reviewed
+procedure)</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch xarm_moveit_config xarm6_moveit_realmove.launch.py robot_ip:=192.168.1.xxx <span class="pp">[</span><span class="ss">add_gripper:=true</span><span class="pp">]</span></span></code></pre></div>
+<p>What&#39;s different:</p>
+<ul>
+<li>The hardware plugin is <code>UFRobotSystemHardware</code>. When it
+starts, it connects to the arm over the network, clears errors, enables
+the motors, and switches the arm into <strong>servo mode</strong>
+(UFACTORY&#39;s mode 1, where the controller accepts a continuous stream of
+joint targets). It switches back to mode 0 when ROS shuts down. While
+ROS is running, the teach pendant and UFACTORY Studio can&#39;t move the
+arm.</li>
+<li>The UFACTORY driver (the <code>xarm_api</code> code) runs
+<strong>inside</strong> that hardware plugin. You don&#39;t start a separate
+driver.</li>
+<li>The driver publishes the arm&#39;s state on
+<strong><code>/xarm/joint_states</code></strong>, and a
+<code>joint_state_publisher</code> node relays it to
+<code>/joint_states</code>. There&#39;s no
+<code>joint_state_broadcaster</code> in this mode.</li>
+<li>The gripper is <strong>not</strong> a ros2_control controller on the
+real arm. MoveIt talks to it through a
+<strong><code>/xarm_gripper/gripper_action</code></strong> action (type
+<code>GripperCommand</code>), which the driver serves directly.</li>
+<li>You also get the driver&#39;s extras under <code>/xarm/</code>, such as
+<code>/xarm/robot_states</code> (arm state, mode, error codes, TCP pose)
+and a set of services like <code>/xarm/clean_error</code>. Most driver
+services are switched off by default; they&#39;re enabled in
+<code>xarm_api/config/xarm_user_params.yaml</code>.</li>
+</ul>
+<p><strong>Safety:</strong> keep the emergency stop in reach. Plan in
+RViz, watch the preview, and only then execute. Start with the velocity
+scaling low.</p>
+<h3 id="gazebo">Gazebo</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/launch_gazebo_xarm.sh</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># which runs: ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py</span></span></code></pre></div>
+<p>This launches Gazebo (Tutorial 2) <em>and</em> MoveIt together. The
+controllers run inside the simulator and every node uses the simulator&#39;s
+clock.</p>
+<h3 id="side-by-side-summary">Side-by-side summary</h3>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>Fake</th>
+<th>Real</th>
+<th>Gazebo</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Hardware plugin</td>
+<td>Fake</td>
+<td>xArm over network</td>
+<td>Gazebo</td>
+</tr>
+<tr class="even">
+<td>Where <code>controller_manager</code> runs</td>
+<td><code>ros2_control_node</code></td>
+<td><code>ros2_control_node</code></td>
+<td>inside Gazebo</td>
+</tr>
+<tr class="odd">
+<td><code>/joint_states</code> comes from</td>
+<td><code>joint_state_broadcaster</code></td>
+<td>driver → <code>joint_state_publisher</code></td>
+<td><code>joint_state_broadcaster</code></td>
+</tr>
+<tr class="even">
+<td>Arm controlled by</td>
+<td><code>xarm6_traj_controller</code></td>
+<td><code>xarm6_traj_controller</code></td>
+<td><code>xarm6_traj_controller</code></td>
+</tr>
+<tr class="odd">
+<td>Gripper controlled by</td>
+<td><code>xarm_gripper_traj_controller</code></td>
+<td><code>/xarm_gripper/gripper_action</code> (driver)</td>
+<td><code>xarm_gripper_traj_controller</code></td>
+</tr>
+<tr class="even">
+<td>Clock</td>
+<td>wall clock</td>
+<td>wall clock</td>
+<td><code>/clock</code> from Gazebo</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-whats-in-the-package">5. What&#39;s in the package</h2>
+<pre><code>xarm_moveit_config/
+├── config/
+│   ├── xarm6/                  one folder per arm model
+│   │   ├── kinematics.yaml       IK solver settings
+│   │   ├── joint_limits.yaml     max velocity / acceleration per joint
+│   │   ├── ompl_planning.yaml    planners available for this group
+│   │   ├── controllers.yaml      where MoveIt sends trajectories — real arm
+│   │   └── fake_controllers.yaml where MoveIt sends trajectories — fake &amp; Gazebo
+│   ├── xarm_gripper/           one folder per gripper, same file types
+│   ├── bio_gripper/ …
+│   └── moveit_configs/         defaults shared by every arm (OMPL plugin, planner list)
+├── srdf/                       planning groups, named poses, collision rules (xacro)
+├── launch/                     *_fake / *_realmove / *_gazebo + dual_* versions
+└── rviz/                       moveit.rviz (planning panel), planner.rviz (view only)</code></pre>
+<p>When you add a gripper, its folder is <strong>merged on top
+of</strong> the arm&#39;s folder. That&#39;s how <code>add_gripper:=true</code>
+adds a gripper group, its limits and its controller without anyone
+writing a new config.</p>
+<h3 id="the-files-one-at-a-time">The files one at a time</h3>
+<p><strong><code>kinematics.yaml</code></strong>: how MoveIt solves
+&quot;what joint angles put the tip here?&quot;</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">xarm6</span><span class="kw">:</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">kinematics_solver</span><span class="kw">:</span><span class="at"> kdl_kinematics_plugin/KDLKinematicsPlugin</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">kinematics_solver_timeout</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.005</span><span class="co">   # seconds per attempt</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">kinematics_solver_attempts</span><span class="kw">:</span><span class="at"> </span><span class="dv">3</span></span></code></pre></div>
+<p><strong><code>joint_limits.yaml</code></strong>: MoveIt respects
+these when it times a trajectory. Lower <code>max_velocity</code> to
+make every planned move slower.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">joint_limits</span><span class="kw">:</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">joint1</span><span class="kw">:</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">has_velocity_limits</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">max_velocity</span><span class="kw">:</span><span class="at"> </span><span class="fl">2.14</span><span class="co">        # rad/s</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">has_acceleration_limits</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">max_acceleration</span><span class="kw">:</span><span class="at"> </span><span class="fl">10.0</span><span class="co">    # rad/s²</span></span></code></pre></div>
+<p><strong><code>ompl_planning.yaml</code></strong>: which OMPL
+algorithms the group can use. <code>RRTConnect</code> is the default;
+you can pick another in RViz&#39;s &quot;Context&quot; tab.</p>
+<p><strong><code>controllers.yaml</code> /
+<code>fake_controllers.yaml</code></strong>: tells MoveIt which action
+to send trajectories to for each group:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">controller_names</span><span class="kw">:</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> xarm6_traj_controller</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="fu">xarm6_traj_controller</span><span class="kw">:</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">action_ns</span><span class="kw">:</span><span class="at"> follow_joint_trajectory</span><span class="co">   # → /xarm6_traj_controller/follow_joint_trajectory</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">type</span><span class="kw">:</span><span class="at"> FollowJointTrajectory</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">joints</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">joint1</span><span class="kw">,</span><span class="at"> joint2</span><span class="kw">,</span><span class="at"> joint3</span><span class="kw">,</span><span class="at"> joint4</span><span class="kw">,</span><span class="at"> joint5</span><span class="kw">,</span><span class="at"> joint6</span><span class="kw">]</span></span></code></pre></div>
+<p>The gripper&#39;s real-arm version uses <code>type: GripperCommand</code>
+and <code>action_ns: gripper_action</code> instead. That one difference
+is why the gripper uses a different action on real hardware.</p>
+<p><strong>The SRDF</strong> (<code>srdf/_xarm6_macro.srdf.xacro</code>)
+defines:</p>
+<ul>
+<li><strong>Planning groups:</strong> <code>xarm6</code> (joints 1–6,
+ending at <code>link_eef</code>, or at <code>link_tcp</code> when a tool
+is attached) and, with a gripper, <code>xarm_gripper</code> (driven by
+<code>drive_joint</code>).</li>
+<li><strong>Named states:</strong> <code>home</code> (all zeros) and
+<code>hold-up</code> for the arm; <code>open</code> (0) and
+<code>close</code> (0.85) for the gripper. These are what show up in
+RViz&#39;s Goal State dropdown, and your code can ask for them by name.</li>
+<li><strong>Disabled collisions:</strong> link pairs that can never
+touch (neighbours, for example), so MoveIt skips checking them.</li>
+</ul>
+<h3 id="where-the-controller-side-is-configured">Where the controller
+side is configured</h3>
+<p>MoveIt&#39;s <code>controllers.yaml</code> only says <em>where to
+send</em> trajectories. The controllers themselves are defined in the
+neighbouring package
+<strong><code>xarm_controller/config/xarm6_controllers.yaml</code></strong>:
+the update rate (150 Hz), joint names, and how closely the controller
+must follow (the <code>constraints</code> block).</p>
+<hr />
+<h2 id="6-how-the-launch-files-are-organised">6. How the launch files
+are organised</h2>
+<p>You&#39;ll never need to edit these to use the arm, but it helps to know
+the shape:</p>
+<pre><code>xarm6_moveit_fake.launch.py            ← what you run; just sets dof=6, robot_type=xarm
+  └─ _robot_moveit_fake.launch.py      ← does the real work (files starting with _ are internal)
+       ├─ builds URDF, SRDF and all the config above into one set of parameters
+       ├─ starts robot_state_publisher and ros2_control_node (fake hardware)
+       ├─ spawns joint_state_broadcaster, xarm6_traj_controller (+ gripper controller)
+       └─ _robot_moveit_common2.launch.py   ← shared by fake, real and Gazebo
+            ├─ move_group
+            ├─ rviz2
+            └─ static_transform_publisher (world → link_base)</code></pre>
+<p>The config-building step is done by a helper class in
+<code>uf_ros_lib</code> called <code>MoveItConfigsBuilder</code>. It
+gathers the URDF, SRDF and YAML files into one dictionary of parameters,
+which is then handed to <code>move_group</code>, RViz and anything else
+that needs it.</p>
+<hr />
+<h2 id="7-useful-launch-arguments">7. Useful launch arguments</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Argument</th>
+<th>Example</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>add_gripper</code></td>
+<td><code>add_gripper:=true</code></td>
+<td>Adds the gripper model, group, limits and controller</td>
+</tr>
+<tr class="even">
+<td><code>add_vacuum_gripper</code></td>
+<td><code>add_vacuum_gripper:=true</code></td>
+<td>Adds the vacuum gripper model (no extra group)</td>
+</tr>
+<tr class="odd">
+<td><code>add_bio_gripper</code></td>
+<td><code>add_bio_gripper:=true</code></td>
+<td>Adds the BIO gripper (not on Lite 6)</td>
+</tr>
+<tr class="even">
+<td><code>add_other_geometry</code></td>
+<td><code>add_other_geometry:=true geometry_type:=box geometry_length:=0.1 …</code></td>
+<td>Adds a custom tool shape so MoveIt accounts for it</td>
+</tr>
+<tr class="odd">
+<td><code>attach_to</code>, <code>attach_xyz</code>,
+<code>attach_rpy</code></td>
+<td><code>attach_xyz:=&#39;&quot;0 0 0.5&quot;&#39;</code></td>
+<td>Mounts the arm somewhere other than the world origin</td>
+</tr>
+<tr class="even">
+<td><code>no_gui_ctrl</code></td>
+<td><code>no_gui_ctrl:=true</code></td>
+<td>Read-only RViz and starts the planner node (Tutorial 3)</td>
+</tr>
+<tr class="odd">
+<td><code>kinematics_suffix</code></td>
+<td><code>kinematics_suffix:=AAA</code></td>
+<td>Uses per-robot calibrated kinematics (real arms built after Aug
+2023)</td>
+</tr>
+</tbody>
+</table>
+<p>Note the double quotes inside single quotes for
+<code>attach_xyz</code>: the value needs to keep its quote marks.</p>
+<hr />
+<h2 id="8-two-arms">8. Two arms</h2>
+<p>The <code>dual_*</code> launch files run <strong>one</strong>
+<code>move_group</code> and <strong>one</strong> controller manager for
+two arms. Every name gets a prefix, <code>L_</code> or <code>R_</code>
+by default: groups <code>L_xarm6</code> and <code>R_xarm6</code>,
+controllers <code>L_xarm6_traj_controller</code> and
+<code>R_xarm6_traj_controller</code>, frames <code>L_link_base</code>
+and <code>R_link_base</code>.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch xarm_moveit_config dual_xarm6_moveit_fake.launch.py</span></code></pre></div>
+<p>In RViz, pick <code>L_xarm6</code> or <code>R_xarm6</code> as the
+planning group to move each arm.</p>
+<hr />
+<h2 id="9-common-questions">9. Common questions</h2>
+<p><strong>&quot;Plan&quot; works but &quot;Execute&quot; fails.</strong> The controller
+rejected the trajectory or isn&#39;t running. Check
+<code>ros2 control list_controllers</code>: the arm controller must be
+<code>active</code>. On the real arm, check
+<code>/xarm/robot_states</code> for an error code.</p>
+<p><strong>Why doesn&#39;t RViz show my gripper group?</strong> You need
+<code>add_gripper:=true</code> on the launch command. Without it the
+gripper doesn&#39;t exist in the URDF or SRDF.</p>
+<p><strong>Why do two nodes publish the <code>world</code> →
+<code>link_base</code> frame?</strong> The URDF already contains a fixed
+<code>world</code> joint (so <code>robot_state_publisher</code>
+publishes it) and the launch also runs a static publisher. They agree,
+so it&#39;s harmless.</p>
+<p><strong>Where do I change how fast moves are?</strong> For
+everything: <code>config/xarm6/joint_limits.yaml</code>. For one move:
+the velocity scaling slider in RViz, or the scaling factor in your
+code.</p>
+<hr />
+<h2 id="recap">Recap</h2>
+<ul>
+<li><code>move_group</code> plans; the controller executes; the hardware
+plugin decides whether the motion is fake, simulated or real.</li>
+<li>MoveIt hands trajectories to
+<code>/xarm6_traj_controller/follow_joint_trajectory</code>.</li>
+<li><code>/joint_states</code> → <code>robot_state_publisher</code> → TF
+closes the loop.</li>
+<li>The config folders are small YAML files; the gripper&#39;s folder is
+merged on top of the arm&#39;s.</li>
+<li>On the real arm, the gripper goes through the driver&#39;s
+<code>GripperCommand</code> action instead of a controller.</li>
+</ul>
+<p><strong>Next: <a href="02-gazebo.html">Tutorial 2 —
+xarm_gazebo</a></strong></p>
+</body>
+</html>
