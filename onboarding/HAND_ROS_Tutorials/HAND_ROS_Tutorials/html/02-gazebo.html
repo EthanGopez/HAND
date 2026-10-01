@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Tutorial 2: xarm_gazebo ��� Putting the Arm in a Simulator</title>
+  <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">body{max-width:860px;margin:2rem auto;padding:0 1rem;font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;color:#1f2328;background:#fff}
+h1,h2,h3{line-height:1.25}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3em}h2{border-bottom:1px solid #eaeef2;padding-bottom:.3em;margin-top:2rem}
+code{background:#f3f4f6;padding:.15em .35em;border-radius:4px;font-size:.9em}
+pre{background:#f6f8fa;padding:1rem;border-radius:6px;overflow-x:auto}pre code{background:none;padding:0}
+table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}th,td{border:1px solid #d0d7de;padding:.4rem .7rem;text-align:left;vertical-align:top}th{background:#f6f8fa}
+blockquote{margin:1rem 0;padding:.5rem 1rem;border-left:4px solid #d4a72c;background:#fff8c5}a{color:#0969da}
+@media (prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}code,pre{background:#161b22}th{background:#161b22}th,td{border-color:#30363d}h1,h2{border-color:#30363d}blockquote{background:#2b2111;border-color:#d4a72c}a{color:#4493f8}}
+</style>
+</head>
+<body>
+<h1 id="tutorial-2-xarm_gazebo--putting-the-arm-in-a-simulator">Tutorial
+2: <code>xarm_gazebo</code> — Putting the Arm in a Simulator</h1>
+<p><strong>You&#39;ll learn:</strong> what Gazebo adds over fake mode, what
+starts when you launch it, how ros2_control runs <em>inside</em> the
+simulator, how simulation time works, how MoveIt drives the simulated
+arm, and the settings you&#39;ll use most.</p>
+<p><strong>Prerequisites:</strong> <a href="01-moveit-config.html">Tutorial 1</a>. You should be comfortable
+with controllers, <code>/joint_states</code> and the
+<code>follow_joint_trajectory</code> action.</p>
+<hr />
+<blockquote>
+<p><strong>HAND team notes (read first)</strong></p>
+<ul>
+<li>Everything here runs inside the <strong>HAND dev container</strong>.
+View RViz and Gazebo at
+<code>http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code>.</li>
+<li>Every new terminal:
+<code>source /workspace/ros_ws/install/setup.bash</code>. If you run
+<code>ros2 launch</code> yourself (instead of a
+<code>scripts/launch_*.sh</code> script), also run
+<code>export DISPLAY=:1</code> first or windows won&#39;t appear in
+VNC.</li>
+<li><strong>Never pass a <code>robot_ip</code> or run a
+<code>*_realmove*</code> launch file.</strong> Real-arm sections are for
+understanding only; physical-arm operation needs the team&#39;s separate
+reviewed procedure.</li>
+</ul>
+</blockquote>
+<h2 id="1-what-gazebo-gives-you-that-fake-mode-doesnt">1. What Gazebo
+gives you that fake mode doesn&#39;t</h2>
+<p>In fake mode the arm is a ghost: commands become positions instantly,
+nothing has mass, and there&#39;s no world around it.</p>
+<p><strong>Gazebo</strong> is a physics simulator. The arm has mass and
+inertia, its motors apply effort to reach commanded positions, things
+can collide, and you can add simulated sensors like a depth camera. It&#39;s
+the closest you get to the real arm without the real arm.</p>
+<p>What stays the same: MoveIt, the controllers, the topic and action
+names. The only thing that changes is the ros2_control hardware plugin
+at the bottom of the stack (see Tutorial 0, section 2).</p>
+<h3 id="which-gazebo">Which Gazebo?</h3>
+<p>This package supports three simulators, picked with
+<code>gz_type</code>:</p>
+<table>
+<thead>
+<tr class="header">
+<th><code>gz_type</code></th>
+<th>Simulator</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>gazebo</code> (default)</td>
+<td>Gazebo Classic (gazebo11)</td>
+<td>The best-supported option; use this unless you have a reason not
+to</td>
+</tr>
+<tr class="even">
+<td><code>gz</code></td>
+<td>Modern Gazebo (Fortress / Harmonic, &quot;gz sim&quot;)</td>
+<td>Needs <code>ros_gz_sim</code>, <code>ros_gz_bridge</code> and
+<code>gz_ros2_control</code> installed; downloads its world models from
+the internet</td>
+</tr>
+<tr class="odd">
+<td><code>ign</code></td>
+<td>Ignition (older name for modern Gazebo)</td>
+<td>Needs the <code>ros_ign_*</code> packages</td>
+</tr>
+</tbody>
+</table>
+<p>Everything below assumes Gazebo Classic unless it says otherwise.</p>
+<hr />
+<h2 id="2-try-it-the-arm-alone-in-gazebo">2. Try it: the arm alone in
+Gazebo</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DISPLAY</span><span class="op">=</span>:1</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch xarm_gazebo xarm6_beside_table_gazebo.launch.py load_controller:=true</span></code></pre></div>
+<p>Gazebo opens with a table and an xArm 6 mounted on its edge.</p>
+<p><code>load_controller:=true</code> tells it to start the controllers
+too. Without it you get the arm model but nothing listening for
+commands, which is fine if you only want to look at it.</p>
+<p>Check the controllers:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> control list_controllers</span></code></pre></div>
+<pre><code>joint_state_broadcaster  …  active
+xarm6_traj_controller    …  active</code></pre>
+<p>Same names as in fake mode. Now move the arm with the same action you
+used in Tutorial 1:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> action send_goal /xarm6_traj_controller/follow_joint_trajectory <span class="dt">\</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  control_msgs/action/FollowJointTrajectory <span class="dt">\</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;{trajectory: {joint_names: [joint1, joint2, joint3, joint4, joint5, joint6],</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="st">    points: [{positions: [0.5, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 3}}]}}&quot;</span></span></code></pre></div>
+<p>The simulated arm turns. Nothing about the command changed. Only the
+hardware underneath did.</p>
+<h3 id="whats-running">What&#39;s running</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> node list</span></code></pre></div>
+<p>You&#39;ll see roughly:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Node</th>
+<th>Job</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>/gazebo</code></td>
+<td>The simulator server; the arm&#39;s physics runs here</td>
+</tr>
+<tr class="even">
+<td><code>/controller_manager</code></td>
+<td>ros2_control, running <em>inside</em> the Gazebo process</td>
+</tr>
+<tr class="odd">
+<td><code>/robot_state_publisher</code></td>
+<td>TF for every link</td>
+</tr>
+</tbody>
+</table>
+<p>Plus short-lived <code>spawn_entity</code> and <code>spawner</code>
+nodes that exit once their job is done.</p>
+<hr />
+<h2 id="3-what-happens-during-launch-in-order">3. What happens during
+launch, in order</h2>
+<pre><code>1. robot_state_publisher starts
+      publishes the robot description (URDF) on the /robot_description topic
+                    │
+2. Gazebo starts with worlds/table.world  (ground, sun, a table)
+                    │
+3. spawn_entity.py reads /robot_description and drops the arm into the world
+      as a model named UF_ROBOT, on the table edge (x=-0.2, y=-0.5, z=1.021, rotated 90°)
+                    │
+4. As the arm model loads, its URDF&#39;s &lt;gazebo&gt; plugin starts ros2_control inside Gazebo:
+      controller_manager + the Gazebo hardware plugin, running at 1000 Hz
+                    │
+5. After spawning finishes: spawners load joint_state_broadcaster, xarm6_traj_controller
+      (and the gripper controller if add_gripper:=true)
+                    │
+6. With the MoveIt launch (section 5), RViz opens here</code></pre>
+<p>Two points worth understanding:</p>
+<p><strong>The URDF tells Gazebo to start ros2_control.</strong> The
+robot description contains a <code>&lt;gazebo&gt;</code> block that
+loads the <code>gazebo_ros2_control</code> plugin, plus a
+<code>&lt;ros2_control&gt;</code> block that says which hardware plugin
+to use (<code>gazebo_ros2_control/GazeboSystem</code>) and which joints
+it controls. That&#39;s why there&#39;s no separate
+<code>ros2_control_node</code> in Gazebo mode: the controller manager
+lives inside the simulator.</p>
+<p><strong>Controllers are loaded only after the arm exists.</strong>
+The launch file waits for the spawn step to finish before it loads
+controllers, because there&#39;s nothing to control until the model is in
+the world.</p>
+<hr />
+<h2 id="4-simulation-time">4. Simulation time</h2>
+<p>In Gazebo, time doesn&#39;t have to match the clock on the wall. The
+simulator can run slower or faster than real time, and it pauses when
+you hit pause.</p>
+<p>So Gazebo publishes its own clock on
+<strong><code>/clock</code></strong>, and every node in a Gazebo launch
+runs with the parameter
+<strong><code>use_sim_time: true</code></strong>. That makes each node
+read time from <code>/clock</code> instead of the computer&#39;s clock.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic echo /clock <span class="at">--once</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> param get /robot_state_publisher use_sim_time</span></code></pre></div>
+<p><strong>Rule:</strong> any node of your own that works with the
+simulated arm must also have <code>use_sim_time: true</code>. If it
+doesn&#39;t, its timestamps won&#39;t line up with <code>/joint_states</code>,
+and things like MoveIt&#39;s &quot;is my robot state recent?&quot; checks will
+fail.</p>
+<p>With <code>gz_type:=gz</code>, the clock comes through a
+<strong><code>ros_gz_bridge</code></strong> node, which translates
+<code>/clock</code> (and camera topics) from Gazebo&#39;s own message system
+into ROS messages.</p>
+<hr />
+<h2 id="5-gazebo--moveit-together">5. Gazebo + MoveIt together</h2>
+<p>This is the usual way to use the simulator:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/launch_gazebo_xarm.sh</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># or, to pass options yourself:</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DISPLAY</span><span class="op">=</span>:1</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch xarm_moveit_config xarm6_moveit_gazebo.launch.py <span class="pp">[</span><span class="ss">add_gripper:=true</span><span class="pp">]</span></span></code></pre></div>
+<p>This single command:</p>
+<ol type="1">
+<li>Builds the full MoveIt configuration (same as fake mode, but pointed
+at the Gazebo hardware plugin and using
+<code>fake_controllers.yaml</code> so MoveIt talks to ros2_control
+controllers for both arm and gripper).</li>
+<li>Starts everything in section 3 above, with
+<code>load_controller:=true</code>.</li>
+<li>Starts <code>move_group</code> with
+<code>use_sim_time: true</code>.</li>
+<li>Opens RViz with the MotionPlanning panel once the arm has
+spawned.</li>
+</ol>
+<p>Now plan and execute in RViz exactly as in Tutorial 1. You&#39;ll see the
+arm move in both RViz <em>and</em> Gazebo, because RViz is showing the
+state that comes back from the simulator.</p>
+<pre><code>RViz ──/move_action──▶ move_group ──follow_joint_trajectory──▶ xarm6_traj_controller
+                                                                  (inside Gazebo)
+                                                                        │
+Gazebo physics moves the joints ◀────── Gazebo hardware plugin ◀───────┘
+        │
+        └─▶ joint_state_broadcaster ─▶ /joint_states ─▶ robot_state_publisher ─▶ /tf ─▶ RViz</code></pre>
+<hr />
+<h2 id="6-the-gripper-in-gazebo">6. The gripper in Gazebo</h2>
+<p>The xArm gripper has one motor but six moving parts: one driven
+joint, <code>drive_joint</code>, and five finger/knuckle joints that
+follow it.</p>
+<ul>
+<li>ros2_control only knows about <code>drive_joint</code>. The gripper
+controller, <code>xarm_gripper_traj_controller</code>, moves only that
+joint.</li>
+<li>The five followers are handled by a small Gazebo plugin built by
+this package:
+<strong><code>libgazebo_mimic_joint_plugin.so</code></strong> (source in
+<code>src/mimic_joint_plugin.cpp</code>). Every simulation step, each
+instance reads <code>drive_joint</code>&#39;s angle and pushes its own
+finger joint to match.</li>
+</ul>
+<p>That&#39;s the only compiled code in <code>xarm_gazebo</code>. The mimic
+plugin is a Gazebo Classic plugin.</p>
+<p>Open and close the gripper by hand:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># close (0.85 rad is fully closed on the xArm gripper; 0 is open)</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> action send_goal /xarm_gripper_traj_controller/follow_joint_trajectory <span class="dt">\</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  control_msgs/action/FollowJointTrajectory <span class="dt">\</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;{trajectory: {joint_names: [drive_joint],</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="st">    points: [{positions: [0.85], time_from_start: {sec: 1}}]}}&quot;</span></span></code></pre></div>
+<hr />
+<h2 id="7-the-world">7. The world</h2>
+<p>The world files are in <code>xarm_gazebo/worlds/</code>:</p>
+<ul>
+<li><code>table.world</code>: Gazebo Classic. Ground plane, sun, and a
+table from Gazebo&#39;s built-in model library.</li>
+<li><code>table_gz.world</code>: the same scene for modern Gazebo,
+loading its models from Gazebo Fuel (online).</li>
+</ul>
+<p>Both run physics at 1 ms steps (1000 per simulated second) and
+<strong>set gravity to zero</strong>
+(<code>&lt;gravity&gt;0 0 0&lt;/gravity&gt;</code>). With zero gravity
+the arm never sags and anything you drop in stays where you put it. If
+you want objects that fall, or you&#39;re studying how the arm copes with
+its own weight, copy the world file into your own package and change
+gravity back to <code>0 0 -9.81</code>.</p>
+<p>To add objects, use Gazebo&#39;s GUI (the Insert tab, or the shapes on
+the toolbar), or write your own world file.</p>
+<hr />
+<h2 id="8-useful-launch-arguments">8. Useful launch arguments</h2>
+<p>These work on both <code>xarm6_beside_table_gazebo.launch.py</code>
+and <code>xarm6_moveit_gazebo.launch.py</code>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Argument</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>add_gripper:=true</code></td>
+<td>Adds the gripper and its controller</td>
+</tr>
+<tr class="even">
+<td><code>add_vacuum_gripper:=true</code> /
+<code>add_bio_gripper:=true</code></td>
+<td>Other end effectors</td>
+</tr>
+<tr class="odd">
+<td><code>add_realsense_d435i:=true</code></td>
+<td>Mounts a simulated RealSense D435i on the wrist. Its images, depth
+and point cloud appear as topics under <code>/camera/…</code>
+(<code>ros2 topic list | grep camera</code>)</td>
+</tr>
+<tr class="even">
+<td><code>add_other_geometry:=true geometry_type:=cylinder geometry_height:=0.075 geometry_radius:=0.045</code></td>
+<td>Attaches a simple custom tool shape to the end of the arm</td>
+</tr>
+<tr class="odd">
+<td><code>gz_type:=gz</code></td>
+<td>Use modern Gazebo instead of Classic (not installed in the HAND
+container)</td>
+</tr>
+<tr class="even">
+<td><code>load_controller:=true</code></td>
+<td>Start the controllers (standalone launches only; the MoveIt launch
+already does this)</td>
+</tr>
+</tbody>
+</table>
+<p>Other arms: <code>lite6_beside_table_gazebo.launch.py</code>,
+<code>uf850_beside_table_gazebo.launch.py</code>, <code>xarm5_…</code>,
+<code>xarm7_…</code>, <code>xarm7_mirror_…</code>.</p>
+<hr />
+<h2 id="9-whats-in-the-package">9. What&#39;s in the package</h2>
+<pre><code>xarm_gazebo/
+├── launch/
+│   ├── xarm6_beside_table_gazebo.launch.py     ← what you run (one per arm)
+│   ├── _robot_beside_table_gazebo.launch.py    ← does the work (section 3)
+│   └── _dual_robot_beside_table_gazebo.launch.py   two arms (spawned as DUAL_UF_ROBOT)
+├── worlds/
+│   ├── table.world        Gazebo Classic
+│   └── table_gz.world     modern Gazebo
+└── src/mimic_joint_plugin.cpp   gripper finger-following plugin</code></pre>
+<p>The robot model itself isn&#39;t here. It comes from
+<code>xarm_description</code>, the same URDF that fake and real modes
+use, with the Gazebo plugin switched on.</p>
+<hr />
+<h2 id="10-common-questions">10. Common questions</h2>
+<p><strong>The arm spawned but won&#39;t move.</strong> Check
+<code>ros2 control list_controllers</code>. In the standalone launch,
+did you pass <code>load_controller:=true</code>?</p>
+<p><strong>My own node sees weird timestamps / MoveIt says the robot
+state is too old.</strong> Your node needs
+<code>use_sim_time: true</code>.</p>
+<p><strong>Gazebo is slow.</strong> In the HAND container it renders in
+software (<code>LIBGL_ALWAYS_SOFTWARE=1</code>), so expect it to be
+slower than on a native install. Check the &quot;real time factor&quot; at the
+bottom of the Gazebo window. Below 1.0 means your machine can&#39;t keep up
+with 1 ms physics steps. Everything still works; it just runs in slow
+motion, and sim time keeps everything consistent.</p>
+<p><strong>Can I grasp objects?</strong> You can close the gripper on an
+object, but grasping in simulation depends entirely on friction and
+contact settings, and it&#39;s often unreliable. For pick-and-place logic,
+many teams simulate the grasp by attaching the object in MoveIt&#39;s
+planning scene instead.</p>
+<hr />
+<h2 id="recap">Recap</h2>
+<ul>
+<li>Gazebo swaps the fake hardware for a physics model; MoveIt, the
+controllers and the names stay the same.</li>
+<li>The URDF&#39;s <code>&lt;gazebo&gt;</code> block starts ros2_control
+<strong>inside</strong> the simulator.</li>
+<li>Controllers are loaded after the arm is spawned.</li>
+<li>Everything uses <strong>sim time</strong> from <code>/clock</code>,
+so your own nodes must too.</li>
+<li>The gripper&#39;s followers are moved by the mimic-joint plugin, not by
+ros2_control.</li>
+<li>The table worlds have gravity switched off.</li>
+</ul>
+<p><strong>Next: <a href="03-planner.html">Tutorial 3 —
+xarm_planner</a></strong></p>
+</body>
+</html>

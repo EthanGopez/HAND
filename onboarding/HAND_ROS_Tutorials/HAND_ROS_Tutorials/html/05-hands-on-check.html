@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Tutorial 5: Hands-On Check</title>
+  <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">body{max-width:860px;margin:2rem auto;padding:0 1rem;font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;color:#1f2328;background:#fff}
+h1,h2,h3{line-height:1.25}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3em}h2{border-bottom:1px solid #eaeef2;padding-bottom:.3em;margin-top:2rem}
+code{background:#f3f4f6;padding:.15em .35em;border-radius:4px;font-size:.9em}
+pre{background:#f6f8fa;padding:1rem;border-radius:6px;overflow-x:auto}pre code{background:none;padding:0}
+table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}th,td{border:1px solid #d0d7de;padding:.4rem .7rem;text-align:left;vertical-align:top}th{background:#f6f8fa}
+blockquote{margin:1rem 0;padding:.5rem 1rem;border-left:4px solid #d4a72c;background:#fff8c5}a{color:#0969da}
+@media (prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}code,pre{background:#161b22}th{background:#161b22}th,td{border-color:#30363d}h1,h2{border-color:#30363d}blockquote{background:#2b2111;border-color:#d4a72c}a{color:#4493f8}}
+</style>
+</head>
+<body>
+<h1 id="tutorial-5-hands-on-check">Tutorial 5: Hands-On Check</h1>
+<p>Launch the fake xArm-6, inspect its topics, transforms and services,
+move it from the command line, and post proof. This confirms your dev
+container works and that you can see the ROS concepts from <a href="00-start-here.html">Tutorial 0</a> in a running system. No
+hardware, no robot IP.</p>
+<h2 id="setup">Setup</h2>
+<p>In the HAND dev container (see the top-level README of the HAND
+repo):</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/bootstrap_ros_workspace.sh</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/build_ros_workspace.sh</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> /workspace/scripts/launch_fake_xarm.sh</span></code></pre></div>
+<p>Open
+<code>http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code>.
+You should see RViz with an xArm-6. Leave the launch running.</p>
+<p>Open a <strong>second</strong> container terminal (VS Code: Terminal
+→ New Terminal) and run:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /workspace/ros_ws/install/setup.bash</span></code></pre></div>
+<h2 id="the-hunt">The hunt</h2>
+<ol type="1">
+<li><p><strong>Nodes.</strong> Run <code>ros2 node list</code>. Pick
+three nodes and write one sentence each on what they do. (Tutorial 1,
+section 2 has a table.)</p></li>
+<li><p><strong>A topic.</strong> Run
+<code>ros2 topic echo /joint_states --once</code>. What is
+<code>joint1</code>&#39;s angle? What units?</p></li>
+<li><p><strong>A transform.</strong> Run
+<code>ros2 run tf2_ros tf2_echo world link_eef</code> for a few seconds
+(Ctrl-C to stop). Write down the translation of the arm&#39;s tip.</p></li>
+<li><p><strong>Move the arm with services.</strong></p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> service call /xarm_joint_plan xarm_msgs/srv/PlanJoint <span class="st">&quot;{target: [0.785, 0.0, 0.0, 0.0, 0.0, 0.0]}&quot;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> service call /xarm_exec_plan xarm_msgs/srv/PlanExec <span class="st">&quot;{wait: true}&quot;</span></span></code></pre></div>
+<p>Watch the arm turn in RViz.</p></li>
+<li><p><strong>Check it moved.</strong> Repeat step 2 and step 3. Which
+numbers changed, and by how much?</p></li>
+<li><p><strong>Send it home.</strong></p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> service call /xarm_joint_plan xarm_msgs/srv/PlanJoint <span class="st">&quot;{target: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}&quot;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> service call /xarm_exec_plan xarm_msgs/srv/PlanExec <span class="st">&quot;{wait: true}&quot;</span></span></code></pre></div></li>
+</ol>
+<h2 id="done-when">Done when</h2>
+<p>Post in the team channel:</p>
+<ul>
+<li>one RViz screenshot with the arm rotated;</li>
+<li>your answers to steps 1, 2, 3 and 5;</li>
+<li>anything that went wrong during setup (so it can be fixed for
+everyone).</li>
+</ul>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Problem</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Package &#39;xarm_msgs&#39; not found</code> / command not found</td>
+<td><code>source /workspace/ros_ws/install/setup.bash</code> in that
+terminal</td>
+</tr>
+<tr class="even">
+<td>Service call hangs with &quot;waiting for service&quot;</td>
+<td>The launch isn&#39;t running or hasn&#39;t finished starting. Check the
+first terminal for errors</td>
+</tr>
+<tr class="odd">
+<td>Nothing in the browser</td>
+<td>Check that VS Code&#39;s <strong>Ports</strong> panel forwards 6080, or
+try TigerVNC Viewer on <code>localhost:5901</code></td>
+</tr>
+<tr class="even">
+<td>RViz has no planning panel</td>
+<td>Expected: <code>launch_fake_xarm.sh</code> opens a view-only RViz.
+You move the arm with the service calls above</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

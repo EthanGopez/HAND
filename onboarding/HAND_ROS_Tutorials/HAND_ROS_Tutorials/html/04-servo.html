@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Tutorial 4: xarm_moveit_servo ��� Steering the Arm Live</title>
+  <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">body{max-width:860px;margin:2rem auto;padding:0 1rem;font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;color:#1f2328;background:#fff}
+h1,h2,h3{line-height:1.25}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3em}h2{border-bottom:1px solid #eaeef2;padding-bottom:.3em;margin-top:2rem}
+code{background:#f3f4f6;padding:.15em .35em;border-radius:4px;font-size:.9em}
+pre{background:#f6f8fa;padding:1rem;border-radius:6px;overflow-x:auto}pre code{background:none;padding:0}
+table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}th,td{border:1px solid #d0d7de;padding:.4rem .7rem;text-align:left;vertical-align:top}th{background:#f6f8fa}
+blockquote{margin:1rem 0;padding:.5rem 1rem;border-left:4px solid #d4a72c;background:#fff8c5}a{color:#0969da}
+@media (prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}code,pre{background:#161b22}th{background:#161b22}th,td{border-color:#30363d}h1,h2{border-color:#30363d}blockquote{background:#2b2111;border-color:#d4a72c}a{color:#4493f8}}
+</style>
+</head>
+<body>
+<h1 id="tutorial-4-xarm_moveit_servo--steering-the-arm-live">Tutorial 4:
+<code>xarm_moveit_servo</code> — Steering the Arm Live</h1>
+<p><strong>You&#39;ll learn:</strong> the difference between planning and
+servoing, what runs when you start servo, how a joystick push becomes
+joint motion, how to drive it from the keyboard or your own code, and
+what the servo settings mean.</p>
+<p><strong>Prerequisites:</strong> <a href="01-moveit-config.html">Tutorial 1</a>. Tutorial 3 is useful for
+contrast.</p>
+<hr />
+<blockquote>
+<p><strong>HAND team notes (read first)</strong></p>
+<ul>
+<li>Everything here runs inside the <strong>HAND dev container</strong>.
+View RViz and Gazebo at
+<code>http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code>.</li>
+<li>Every new terminal:
+<code>source /workspace/ros_ws/install/setup.bash</code>. If you run
+<code>ros2 launch</code> yourself (instead of a
+<code>scripts/launch_*.sh</code> script), also run
+<code>export DISPLAY=:1</code> first or windows won&#39;t appear in
+VNC.</li>
+<li><strong>Never pass a <code>robot_ip</code> or run a
+<code>*_realmove*</code> launch file.</strong> Real-arm sections are for
+understanding only; physical-arm operation needs the team&#39;s separate
+reviewed procedure.</li>
+</ul>
+</blockquote>
+<blockquote>
+<ul>
+<li><strong>Gamepads don&#39;t work inside the HAND container</strong> (USB
+devices aren&#39;t passed through). Use the <strong>keyboard</strong>
+controls in section 2, or the Python script in section 5.</li>
+</ul>
+</blockquote>
+<h2 id="1-planning-vs-servoing">1. Planning vs servoing</h2>
+<p>Everything so far has been <strong>plan, then execute</strong>:
+decide the whole motion up front, check it, then run it. That&#39;s right
+when you know where you&#39;re going.</p>
+<p>Sometimes you don&#39;t. A person is steering with a joystick, or a
+camera is tracking a moving object and nudging the tool toward it many
+times a second. For that you want <strong>servoing</strong>: a
+continuous stream of small &quot;move this way, this fast, right now&quot;
+commands, each turned into joint motion immediately.</p>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>Planning (Tutorials 1 and 3)</th>
+<th>Servoing (this tutorial)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Input</td>
+<td>A goal: &quot;go <em>there</em>&quot;</td>
+<td>A velocity: &quot;move <em>this way</em>, this fast&quot;</td>
+</tr>
+<tr class="even">
+<td>When it moves</td>
+<td>After the whole path is computed</td>
+<td>Immediately, continuously</td>
+</tr>
+<tr class="odd">
+<td>Obstacle handling</td>
+<td>Plans a path around them</td>
+<td>Slows and stops as it gets close; doesn&#39;t route around</td>
+</tr>
+<tr class="even">
+<td>Typical use</td>
+<td>Pick-and-place, known positions</td>
+<td>Teleoperation, visual servoing, fine alignment</td>
+</tr>
+</tbody>
+</table>
+<p><code>xarm_moveit_servo</code> sets up <strong>MoveIt Servo</strong>
+(part of MoveIt) for the xArm, and adds nodes that turn a joystick or
+keyboard into servo commands.</p>
+<hr />
+<h2 id="2-try-it">2. Try it</h2>
+<p>In the HAND container, start servo like this (the joystick setting
+doesn&#39;t matter, since there&#39;s no gamepad):</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DISPLAY</span><span class="op">=</span>:1</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># fake hardware, xArm 6</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch xarm_moveit_servo xarm_moveit_servo_fake.launch.py dof:=6 joystick_type:=1</span></code></pre></div>
+<p><code>joystick_type</code>: <code>1</code> = wired Xbox 360,
+<code>2</code> = wireless Xbox 360, <code>3</code> = SpaceMouse
+Wireless.</p>
+<p>RViz opens. Jump to <strong>No joystick? Use the keyboard</strong>
+below to drive it. (With a gamepad on a native Ubuntu install, pushing
+the left stick slides the arm&#39;s tip forward, back, left and right.)</p>
+<h3 id="controls-xbox-360-native-installs-only">Controls (Xbox 360,
+native installs only)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Input</th>
+<th>Moves</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Left stick</td>
+<td>Tool along X and Y</td>
+</tr>
+<tr class="even">
+<td>LT / RT triggers</td>
+<td>Tool along Z (down / up)</td>
+</tr>
+<tr class="odd">
+<td>Right stick</td>
+<td>Tool roll and pitch</td>
+</tr>
+<tr class="even">
+<td>LB / RB bumpers</td>
+<td>Tool yaw</td>
+</tr>
+<tr class="odd">
+<td>D-pad</td>
+<td>Joint 1 and joint 2 directly</td>
+</tr>
+<tr class="even">
+<td>X / B</td>
+<td>Last joint (e.g. joint 6)</td>
+</tr>
+<tr class="odd">
+<td>Y / A</td>
+<td>Second-to-last joint</td>
+</tr>
+<tr class="even">
+<td>Back / Start</td>
+<td>Switch between moving relative to the <strong>base</strong> or the
+<strong>tool</strong></td>
+</tr>
+</tbody>
+</table>
+<p>With a SpaceMouse, the six axes of the puck map to X/Y/Z and
+roll/pitch/yaw. Hold the left button to allow only X/Y/Z, the right
+button to allow only rotation.</p>
+<h3 id="no-joystick-use-the-keyboard">No joystick? Use the keyboard</h3>
+<p>Start the launch as above, then in a <strong>second
+terminal</strong>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /workspace/ros_ws/install/setup.bash</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> run xarm_moveit_servo xarm_keyboard_input</span></code></pre></div>
+<p>Keep that terminal focused and press keys:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Arrow keys</td>
+<td>Tool along X / Y</td>
+</tr>
+<tr class="even">
+<td><code>;</code> / <code>.</code></td>
+<td>Tool up / down</td>
+</tr>
+<tr class="odd">
+<td><code>1</code> – <code>7</code></td>
+<td>Jog that joint</td>
+</tr>
+<tr class="even">
+<td><code>R</code></td>
+<td>Reverse the jog direction for number keys</td>
+</tr>
+<tr class="odd">
+<td><code>W</code> / <code>E</code></td>
+<td>Commands relative to the base (<strong>W</strong>orld) / the
+<strong>E</strong>nd effector</td>
+</tr>
+<tr class="even">
+<td><code>Q</code></td>
+<td>Quit</td>
+</tr>
+</tbody>
+</table>
+<p>Each keypress sends one command. Holding a key down (key repeat)
+keeps the arm moving; releasing it stops the arm within a fraction of a
+second.</p>
+<hr />
+<h2 id="3-whats-running">3. What&#39;s running</h2>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> node list</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>Node</th>
+<th>Job</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>/servo_server</code></td>
+<td>MoveIt Servo: turns velocity commands into joint positions, checks
+collisions and singularities</td>
+</tr>
+<tr class="even">
+<td><code>/joy_node</code></td>
+<td>Reads the gamepad and publishes <code>/joy</code></td>
+</tr>
+<tr class="odd">
+<td><code>/joy_to_twist_publisher</code></td>
+<td>Converts <code>/joy</code> into servo commands (this package&#39;s
+code)</td>
+</tr>
+<tr class="even">
+<td><code>/robot_state_publisher</code></td>
+<td>TF from <code>/joint_states</code></td>
+</tr>
+<tr class="odd">
+<td><code>/static_tf2_broadcaster</code></td>
+<td>Fixed <code>world</code> → <code>link_base</code> frame</td>
+</tr>
+<tr class="even">
+<td><code>/controller_manager</code></td>
+<td>ros2_control with fake or real hardware</td>
+</tr>
+<tr class="odd">
+<td><code>/rviz2</code></td>
+<td>Visualisation</td>
+</tr>
+</tbody>
+</table>
+<p>Most of these run inside one process, a <strong>component
+container</strong> called <code>xarm_moveit_servo_container</code>.
+Components are nodes loaded as plugins into a shared process so they can
+pass messages without copying them, which lowers latency.</p>
+<p><strong>Notice what&#39;s missing: there&#39;s no
+<code>move_group</code>.</strong> Servo doesn&#39;t use the planner. It
+loads the robot model and planning scene itself, and it talks to the
+controller directly.</p>
+<hr />
+<h2 id="4-from-stick-push-to-joint-motion">4. From stick push to joint
+motion</h2>
+<pre><code> gamepad
+    │
+ joy_node ──/joy (sensor_msgs/Joy)──▶ joy_to_twist_publisher
+                                          │  maps sticks/buttons to either:
+                                          ├─ TwistStamped ─▶ /servo_server/delta_twist_cmds
+                                          └─ JointJog ─────▶ /servo_server/delta_joint_cmds
+                                                                  │
+                                                          servo_server
+                                          (reads /joint_states and the planning scene)
+                                                                  │
+                                    JointTrajectory, about 15 times a second
+                                                                  ▼
+                                          /xarm6_traj_controller/joint_trajectory
+                                                                  │
+                                                     xarm6_traj_controller
+                                                                  │
+                                                      hardware (fake or real)</code></pre>
+<p>Step by step:</p>
+<ol type="1">
+<li><strong><code>joy_node</code></strong> reads the gamepad and
+publishes its raw axes and buttons on <code>/joy</code>.</li>
+<li><strong><code>joy_to_twist_publisher</code></strong> decides what
+the input means:
+<ul>
+<li>Sticks, triggers and bumpers become a <strong>twist</strong>: a
+linear velocity (x, y, z) and angular velocity (roll, pitch, yaw) for
+the tool. It&#39;s stamped with a frame, <code>link_base</code> or
+<code>link_eef</code>, which tells servo whether &quot;forward&quot; means the
+base&#39;s forward or the tool&#39;s forward.</li>
+<li>D-pad and face buttons become a <strong>joint jog</strong>: &quot;move
+joint N at this speed.&quot; Small stick movements are ignored (a dead zone),
+so a resting stick doesn&#39;t creep.</li>
+</ul></li>
+<li><strong><code>servo_server</code></strong>, every 0.067 s (about 15
+Hz):
+<ul>
+<li>Takes the latest command.</li>
+<li>For a twist, uses the arm&#39;s <strong>Jacobian</strong> (the maths
+linking joint speeds to tool speed) to work out the joint velocities
+that produce that tool motion.</li>
+<li>Scales down near <strong>singularities</strong> (poses where the arm
+loses the ability to move in some direction, like when fully stretched
+out).</li>
+<li>Scales down or stops near <strong>collisions</strong> with itself or
+objects in the planning scene.</li>
+<li>Stops joints before they hit their <strong>limits</strong>.</li>
+<li>Turns the resulting velocities into the next joint positions and
+publishes them as a short <code>JointTrajectory</code>.</li>
+</ul></li>
+<li><strong>The controller</strong> receives that trajectory on its
+<strong>topic</strong>
+(<code>/xarm6_traj_controller/joint_trajectory</code>), not its action,
+and moves the joints.</li>
+</ol>
+<p>Note the difference from planning: servo uses the controller&#39;s plain
+topic interface, sending a fresh short trajectory every cycle. Each new
+message replaces the previous one.</p>
+<h3 id="the-dead-man-behaviour">The dead-man behaviour</h3>
+<p>Servo only keeps moving while commands keep arriving. If no command
+arrives for <strong>0.2 seconds</strong>, it stops and sends a few &quot;hold
+still&quot; messages. That&#39;s why releasing the stick or key stops the arm.
+Anything that drives servo must <strong>stream</strong> commands
+continuously, not send one and wait.</p>
+<hr />
+<h2 id="5-driving-servo-from-your-own-code">5. Driving servo from your
+own code</h2>
+<p>Because servo just listens on a topic, anything that publishes
+<code>TwistStamped</code> can drive it: a vision tracker, a
+force-feedback loop, a script. This Python node moves the tool slowly
+upward for as long as it runs:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env python3</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> rclpy</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> geometry_msgs.msg <span class="im">import</span> TwistStamped</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> main():</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    rclpy.init()</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    node <span class="op">=</span> rclpy.create_node(<span class="st">&#39;twist_streamer&#39;</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    pub <span class="op">=</span> node.create_publisher(TwistStamped, <span class="st">&#39;/servo_server/delta_twist_cmds&#39;</span>, <span class="dv">10</span>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> tick():</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        msg <span class="op">=</span> TwistStamped()</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        msg.header.stamp <span class="op">=</span> node.get_clock().now().to_msg()   <span class="co"># servo ignores stale commands</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>        msg.header.frame_id <span class="op">=</span> <span class="st">&#39;link_base&#39;</span>                     <span class="co"># directions relative to the base</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        msg.twist.linear.z <span class="op">=</span> <span class="fl">0.02</span>                             <span class="co"># 2 cm/s upward</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        pub.publish(msg)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    node.create_timer(<span class="fl">0.05</span>, tick)   <span class="co"># 20 Hz: faster than servo&#39;s 15 Hz and well inside the 0.2 s timeout</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    rclpy.spin(node)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&#39;__main__&#39;</span>:</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    main()</span></code></pre></div>
+<p>Save it as <code>twist_streamer.py</code>, then run
+<code>python3 twist_streamer.py</code> in a sourced terminal with the
+servo launch up. Ctrl-C stops the script, and servo stops the arm 0.2 s
+later.</p>
+<p>Things to notice:</p>
+<ul>
+<li><strong>Units:</strong> this setup uses
+<code>command_in_type: speed_units</code>, so numbers are <strong>metres
+per second</strong> and <strong>radians per second</strong>.
+<code>0.02</code> is 2 cm/s.</li>
+<li><strong>The timestamp matters.</strong> Servo uses it to decide
+whether a command is fresh. Always stamp with the current time.</li>
+<li><strong>The frame decides the directions.</strong>
+<code>link_base</code>: z is up. <code>link_eef</code>: z is along the
+tool axis.</li>
+</ul>
+<p>To jog joints instead, publish <code>control_msgs/msg/JointJog</code>
+to <code>/servo_server/delta_joint_cmds</code> with
+<code>joint_names: [&#39;joint1&#39;]</code> and
+<code>velocities: [0.1]</code>.</p>
+<h3 id="starting-and-stopping-servo">Starting and stopping servo</h3>
+<p>Servo has service switches:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> service call /servo_server/start_servo std_srvs/srv/Trigger</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> service call /servo_server/stop_servo std_srvs/srv/Trigger</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> service call /servo_server/pause_servo std_srvs/srv/Trigger</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> service call /servo_server/unpause_servo std_srvs/srv/Trigger</span></code></pre></div>
+<p>The joystick and keyboard nodes call <code>start_servo</code>
+automatically when they start.</p>
+<p>Watch servo&#39;s status (normal, near singularity, near collision, joint
+bound, and so on) on:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic echo /servo_server/status</span></code></pre></div>
+<hr />
+<h2 id="6-the-settings-file">6. The settings file</h2>
+<p>Servo is configured by
+<code>config/xarm_moveit_servo_config.yaml</code>. The launch file
+overwrites two values to match the arm you launched: the planning group
+(<code>move_group_name</code>, e.g. <code>xarm6</code>) and the output
+topic (<code>command_out_topic</code>, e.g.
+<code>/xarm6_traj_controller/joint_trajectory</code>).</p>
+<table>
+<thead>
+<tr class="header">
+<th>Setting</th>
+<th>Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>command_in_type</code></td>
+<td><code>speed_units</code></td>
+<td>Inputs are m/s and rad/s. (The alternative, <code>unitless</code>,
+treats inputs as −1…1 and multiplies by the <code>scale</code>
+values.)</td>
+</tr>
+<tr class="even">
+<td><code>scale.linear</code> / <code>rotational</code> /
+<code>joint</code></td>
+<td>0.1 / 0.1 / 0.01</td>
+<td>Only used with <code>unitless</code> input</td>
+</tr>
+<tr class="odd">
+<td><code>publish_period</code></td>
+<td>0.067 s</td>
+<td>How often servo sends a new command (~15 Hz)</td>
+</tr>
+<tr class="even">
+<td><code>command_out_type</code></td>
+<td><code>trajectory_msgs/JointTrajectory</code></td>
+<td>What servo publishes to the controller</td>
+</tr>
+<tr class="odd">
+<td><code>publish_joint_positions</code></td>
+<td>true</td>
+<td>Sends positions (not velocities) to the controller</td>
+</tr>
+<tr class="even">
+<td><code>planning_frame</code></td>
+<td><code>link_base</code></td>
+<td>The frame servo does its maths in</td>
+</tr>
+<tr class="odd">
+<td><code>ee_frame_name</code></td>
+<td><code>link_eef</code></td>
+<td>The link treated as the tool</td>
+</tr>
+<tr class="even">
+<td><code>robot_link_command_frame</code></td>
+<td><code>link_base</code></td>
+<td>Default frame for incoming commands</td>
+</tr>
+<tr class="odd">
+<td><code>incoming_command_timeout</code></td>
+<td>0.2 s</td>
+<td>Stop if no command for this long</td>
+</tr>
+<tr class="even">
+<td><code>num_outgoing_halt_msgs_to_publish</code></td>
+<td>4</td>
+<td>&quot;Hold still&quot; messages sent when stopping</td>
+</tr>
+<tr class="odd">
+<td><code>lower_singularity_threshold</code></td>
+<td>17</td>
+<td>Start slowing near a singularity</td>
+</tr>
+<tr class="even">
+<td><code>hard_stop_singularity_threshold</code></td>
+<td>30</td>
+<td>Stop at this point</td>
+</tr>
+<tr class="odd">
+<td><code>joint_limit_margin</code></td>
+<td>0.1 rad</td>
+<td>Stop this far before a joint limit</td>
+</tr>
+<tr class="even">
+<td><code>check_collisions</code></td>
+<td>true</td>
+<td>Check for collisions while moving</td>
+</tr>
+<tr class="odd">
+<td><code>collision_check_rate</code></td>
+<td>10 Hz</td>
+<td>How often</td>
+</tr>
+<tr class="even">
+<td><code>self_collision_proximity_threshold</code></td>
+<td>0.01 m</td>
+<td>Slow down this close to hitting itself</td>
+</tr>
+<tr class="odd">
+<td><code>scene_collision_proximity_threshold</code></td>
+<td>0.02 m</td>
+<td>Slow down this close to scene objects</td>
+</tr>
+</tbody>
+</table>
+<p>(The singularity thresholds are condition numbers of the Jacobian, a
+measure of how badly the arm&#39;s motion is distorted. Higher means closer
+to a singularity.)</p>
+<hr />
+<h2 id="7-real-arm-reference-only--hand-does-not-run-this-without-a-reviewed-procedure">7.
+Real arm (reference only — HAND does not run this without a reviewed
+procedure)</h2>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch xarm_moveit_servo xarm_moveit_servo_realmove.launch.py robot_ip:=192.168.1.xxx dof:=6 joystick_type:=1</span></code></pre></div>
+<p>The whole chain is the same; the hardware plugin talks to the arm
+instead of faking it (Tutorial 1, section 4).</p>
+<p><strong>Before you jog a real arm:</strong></p>
+<ul>
+<li>Know the speeds. With <code>speed_units</code> input, a full stick
+push asks for <strong>1 m/s</strong> of tool speed (or 1 rad/s
+rotation), and each keyboard arrow press asks for <strong>0.5
+m/s</strong>. Servo&#39;s safety features slow things near limits and
+singularities, not in open space.</li>
+<li>Try everything in fake mode first, and keep the emergency stop in
+your hand.</li>
+<li>Start with small stick movements.</li>
+</ul>
+<p>The 7-axis joystick setup also jogs joint 1 very slightly for a
+moment at start-up, to wake servo. Expect that small motion.</p>
+<p>Other arms: <code>lite6_moveit_servo_fake.launch.py</code> /
+<code>…_realmove.launch.py</code>,
+<code>uf850_moveit_servo_fake.launch.py</code> /
+<code>…_realmove.launch.py</code>. For xArm 5 and 7 use the
+<code>xarm_…</code> files with <code>dof:=5</code> or
+<code>dof:=7</code>.</p>
+<hr />
+<h2 id="8-whats-in-the-package">8. What&#39;s in the package</h2>
+<pre><code>xarm_moveit_servo/
+├── config/xarm_moveit_servo_config.yaml     servo settings (section 6)
+├── launch/
+│   ├── xarm_moveit_servo_{fake,realmove}.launch.py    what you run (+ lite6_, uf850_)
+│   └── _robot_moveit_servo.launch.py                  does the work
+├── src/
+│   ├── xarm_joystick_input.cpp    the /joy → servo command component
+│   └── xarm_keyboard_input.cpp    the keyboard executable
+└── rviz/servo.rviz</code></pre>
+<p>The launch file builds the same robot configuration as Tutorial 1,
+starts ros2_control, spawns the controllers, and once the arm controller
+is up, starts the container with servo and the input nodes.</p>
+<hr />
+<h2 id="9-common-questions">9. Common questions</h2>
+<p><strong>Nothing moves when I push the stick.</strong> In the HAND
+container this is expected: there&#39;s no gamepad passthrough. Use the
+keyboard. On a native install, check <code>ros2 topic echo /joy</code>:
+if nothing appears, the gamepad isn&#39;t detected. If <code>/joy</code>
+works, check that <code>joystick_type</code> matches your controller:
+the node ignores messages with the wrong number of axes and buttons.</p>
+<p><strong>It moves, then stops near a certain pose.</strong> Look at
+<code>/servo_server/status</code>. You&#39;re probably near a singularity, a
+joint limit or a collision.</p>
+<p><strong>Can I use servo and the planner at the same time?</strong>
+They&#39;d both be commanding the same controller. Pick one at a time: servo
+for live control, the planner for goal-to-goal moves.</p>
+<p><strong>Why does the arm stop when my script pauses?</strong> The 0.2
+s command timeout. Keep publishing, even zeros, while you want servo to
+stay &quot;live.&quot;</p>
+<hr />
+<h2 id="recap">Recap</h2>
+<ul>
+<li>Servoing = continuous velocity commands, executed immediately;
+planning = compute a whole path first.</li>
+<li>Input nodes publish <code>TwistStamped</code> (tool velocity) or
+<code>JointJog</code> (joint velocity) to
+<code>servo_server</code>.</li>
+<li><code>servo_server</code> converts them to joint positions ~15 times
+a second, with singularity, collision and joint-limit checks, and
+publishes to the controller&#39;s <strong>topic</strong>.</li>
+<li>No <code>move_group</code> is involved.</li>
+<li>Commands must stream; 0.2 s of silence stops the arm.</li>
+<li>Inputs are in m/s and rad/s here, so be deliberate on the real
+arm.</li>
+</ul>
+<p><strong>Back to: <a href="00-start-here.html">Tutorial 0 — Start
+Here</a></strong></p>
+</body>
+</html>
