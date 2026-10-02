@@ -10,7 +10,18 @@ import sys
 import time
 from typing import Any
 from urllib.request import urlopen
+from collections import deque
+import math
 
+EMA_ALPHA = 0.8  # exponential moving average for smoothing landmark positions
+# basically, constant is how much of the current frame's position is used,
+# and 1-constant is how much of the previous frame's position is used
+filtered_landmarks = {}
+# this is a dictionary that will hold the filtered landmark positions for each hand index
+trails = {}
+# this is just a dictionary that will hold the trail of the palm center for each hand index, 
+# for visual purposes so i know where the hand has been over the last few frames, and so that 
+# i know the palm center is only tracking one hand when both are on screen
 
 MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
@@ -113,13 +124,17 @@ def ensure_model(model_path: Path, allow_download: bool) -> None:
         if partial_path.exists():
             partial_path.unlink()
 
-
+'''
 def open_capture(source: int | str, cv2: Any) -> Any:
     """Open a video source, selecting AVFoundation for a macOS webcam."""
     if sys.platform == "darwin" and isinstance(source, int):
-        return cv2.VideoCapture(source, cv2.CAP_AVFOUNDATION)
+        # return cv2.VideoCapture(source, cv2.CAP_AVFOUNDATION)
+        return cv2.VideoCapture('http://host.docker.internal:5000/video')
     return cv2.VideoCapture(source)
-
+'''
+# this is the new video capture source that i fixed sorta?
+def open_capture(source, cv2):
+    return cv2.VideoCapture('http://10.150.16.215:5000/video')
 
 def warm_up_camera(capture: Any) -> bool:
     """Discard initial webcam frames while exposure and focus settle."""
@@ -132,6 +147,9 @@ def warm_up_camera(capture: Any) -> bool:
         time.sleep(0.03)
     return received_image
 
+# this is where i started messing with shit
+# 90% of what i wrote is comments tbh
+# holy yap
 
 def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
     """Draw the Tasks API landmarks and connections on one video frame."""
@@ -141,15 +159,119 @@ def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
             (int(landmark.x * width), int(landmark.y * height))
             for landmark in landmarks
         ]
+        global filtered_landmarks
+
+        # had to swap all the point stuff to filtered_landmarks instead of points, 
+        # because points is just the current frame's landmarks, and filtered_landmarks 
+        # is the EMA smoothed version of the landmarks, which is what i want to use for 
+        # drawing and calculating palm center and depth estimate and stuff.
+        # that was hell :)
+        if hand_index not in filtered_landmarks:
+            filtered_landmarks[hand_index] = points.copy()
+        else:
+            filtered_landmarks[hand_index] = [
+                (
+                    # ema stuff
+                    # current frame is weighted EMA_ALPHA, 
+                    # previous frame is weighted 1-EMA_ALPHA
+                    int(
+                        EMA_ALPHA * current[0]
+                        + (1 - EMA_ALPHA) * previous[0]
+                    ),
+                    int(
+                        EMA_ALPHA * current[1]
+                        + (1 - EMA_ALPHA) * previous[1]
+                    ),
+                )
+                for current, previous in zip(
+                    points,
+                    filtered_landmarks[hand_index],
+                )
+            ]
+        # calculate center of palm using these landmarks
+        palm_indices = [0, 1, 5, 9, 13, 17]
+
+        # these are calculated by adding x/y coords, then dividing by len(num of coords)
+        # set x value of palm center
+        center_x = int(
+            sum(filtered_landmarks[hand_index][i][0] for i in palm_indices)
+            / len(palm_indices)
+        )
+        # set y value of palm center
+        center_y = int(
+            sum(filtered_landmarks[hand_index][i][1] for i in palm_indices)
+            / len(palm_indices)
+        )
+        # draw a circle at the palm center (green because green is good)
+        cv2.circle(
+            frame,
+            (center_x, center_y),
+            10,
+            (0, 255, 0),
+            -1,
+        )
+        if hand_index not in trails:
+            trails[hand_index] = deque(maxlen=30)
+        trails[hand_index].append((center_x, center_y))
+        for i in range(1, len(trails[hand_index])):
+            cv2.line(
+                frame,
+                trails[hand_index][i - 1],
+                trails[hand_index][i],
+                (255,255,0),
+                2,
+            )
+        # these are the knuckles
+        index_mcp = filtered_landmarks[hand_index][5]
+        pinky_mcp = filtered_landmarks[hand_index][17]
+
+
+        # maybe add a constant for palm width to better compute the
+        # depth estimate. using real units for that may help to
+        # know how far the hand is in real units.
+
+        # this is how the width of the palm is calculated
+        # (distance formula between two points)
+        palm_width = math.sqrt(
+            #index_mcp[0] is x value, while index_mcp[1] is y value, same for pinky_mcp
+            # mcp stands for metacarpophalangeal joint, which is the knuckle joint
+            (index_mcp[0] - pinky_mcp[0])**2 +
+            (index_mcp[1] - pinky_mcp[1])**2
+        )
+        # this is a rough estimate of depth based on the width of the palm in pixels
+        # the larger the palm width, the closer the hand is to the camera, and vice versa
+        # useful bc if hand is far away, points are close together, which distorts the actual 
+        # x, y, and z values of the landmarks, so if the hand is far the robot would think
+        # the hand is shrinking or something, and if the hand is close the robot would think 
+        # the hand is growing. using the depth as a multiplier, the xyz scales with the depth,
+        # making the xyz more accurate to the actual size of the hand
+        depth_estimate = 1000.0 / max(palm_width, 1)
+        # note for later, i wanna do some testing to see what the depth estimate is at 
+        # different distances from the camera, and then use that to make a more accurate 
+        # depth estimate, using actual units like centimeters or inches, instead of 
+        # just a rough estimate based on palm width in pixels.
+        cv2.putText(
+            frame,
+            f"Depth: {depth_estimate:.1f}",
+            (center_x + 20, center_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255,255,0),
+            2,
+        )
+        # edited this to use filtered_landmarks instead of points, reduce jitter and such
         for connection in vision.HandLandmarksConnections.HAND_CONNECTIONS:
             cv2.line(
                 frame,
-                points[connection.start],
-                points[connection.end],
+                filtered_landmarks[hand_index][connection.start],
+                filtered_landmarks[hand_index][connection.end],
                 (80, 220, 80),
                 2,
             )
-        for landmark_index, point in enumerate(points):
+        # side note fuck java this is so much better oml
+        for landmark_index, point in enumerate(
+            filtered_landmarks[hand_index]
+        ):
             cv2.circle(frame, point, 4, (30, 30, 255), -1)
             if landmark_index in (0, 4, 8, 12, 16, 20):
                 cv2.putText(
@@ -165,7 +287,7 @@ def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
 
         handedness = result.handedness[hand_index][0]
         label = f"{handedness.category_name} {handedness.score:.2f}"
-        anchor = points[0]
+        anchor = filtered_landmarks[hand_index][0]
         cv2.putText(
             frame,
             label,
@@ -176,7 +298,7 @@ def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
             2,
             cv2.LINE_AA,
         )
-
+    # didn't really mess with anything after this
 
 def write_result(
     writer: csv.DictWriter[str] | None,
