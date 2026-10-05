@@ -1,6 +1,7 @@
 {
   "name": "HAND — ROS 2 Humble and xArm-6",
   "image": "osrf/ros:humble-desktop",
+  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
   "customizations": {
