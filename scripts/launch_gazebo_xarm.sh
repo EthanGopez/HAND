@@ -10,6 +10,7 @@ fi
 
 source /opt/ros/humble/setup.bash
 source "${PROJECT_ROOT}/ros_ws/install/setup.bash"
+bash "${PROJECT_ROOT}/scripts/fix_moveit_versions.sh"
 bash "${PROJECT_ROOT}/.devcontainer/start-vnc.sh"
 export DISPLAY=:1
 
