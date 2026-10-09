@@ -1,0 +1,627 @@
+{
+  "input_file": "C:\\Users\\aul12\\.venv-emg\\EMG_Input.txt",
+  "channels_one_based": [
+    1,
+    2
+  ],
+  "mode": "envelope",
+  "sampling_rate_assumed_hz": 500,
+  "window_samples": 100,
+  "hop_samples": 25,
+  "class_names": [
+    "rest",
+    "power_grip",
+    "two_finger",
+    "three_finger",
+    "pointing_index",
+    "open_hand"
+  ],
+  "trials": {
+    "segment_0001": {
+      "label": 0,
+      "start_line": 1,
+      "end_line": 4466,
+      "sample_count": 4466
+    },
+    "segment_0002": {
+      "label": 5,
+      "start_line": 4467,
+      "end_line": 6058,
+      "sample_count": 1592
+    },
+    "segment_0003": {
+      "label": 0,
+      "start_line": 6059,
+      "end_line": 7440,
+      "sample_count": 1382
+    },
+    "segment_0004": {
+      "label": 5,
+      "start_line": 7441,
+      "end_line": 9025,
+      "sample_count": 1585
+    },
+    "segment_0005": {
+      "label": 0,
+      "start_line": 9026,
+      "end_line": 10422,
+      "sample_count": 1397
+    },
+    "segment_0006": {
+      "label": 5,
+      "start_line": 10423,
+      "end_line": 12040,
+      "sample_count": 1618
+    },
+    "segment_0007": {
+      "label": 0,
+      "start_line": 12041,
+      "end_line": 13534,
+      "sample_count": 1494
+    },
+    "segment_0008": {
+      "label": 5,
+      "start_line": 13535,
+      "end_line": 14972,
+      "sample_count": 1438
+    },
+    "segment_0009": {
+      "label": 0,
+      "start_line": 14973,
+      "end_line": 16380,
+      "sample_count": 1408
+    },
+    "segment_0010": {
+      "label": 5,
+      "start_line": 16381,
+      "end_line": 17961,
+      "sample_count": 1581
+    },
+    "segment_0011": {
+      "label": 0,
+      "start_line": 17962,
+      "end_line": 19342,
+      "sample_count": 1381
+    },
+    "segment_0012": {
+      "label": 5,
+      "start_line": 19343,
+      "end_line": 20946,
+      "sample_count": 1604
+    },
+    "segment_0013": {
+      "label": 0,
+      "start_line": 20947,
+      "end_line": 22372,
+      "sample_count": 1426
+    },
+    "segment_0014": {
+      "label": 5,
+      "start_line": 22373,
+      "end_line": 24170,
+      "sample_count": 1798
+    },
+    "segment_0015": {
+      "label": 0,
+      "start_line": 24171,
+      "end_line": 25362,
+      "sample_count": 1192
+    },
+    "segment_0016": {
+      "label": 5,
+      "start_line": 25363,
+      "end_line": 27094,
+      "sample_count": 1732
+    },
+    "segment_0017": {
+      "label": 0,
+      "start_line": 27095,
+      "end_line": 28322,
+      "sample_count": 1228
+    },
+    "segment_0018": {
+      "label": 5,
+      "start_line": 28323,
+      "end_line": 29971,
+      "sample_count": 1649
+    },
+    "segment_0019": {
+      "label": 0,
+      "start_line": 29972,
+      "end_line": 31294,
+      "sample_count": 1323
+    },
+    "segment_0020": {
+      "label": 5,
+      "start_line": 31295,
+      "end_line": 32947,
+      "sample_count": 1653
+    },
+    "segment_0021": {
+      "label": 0,
+      "start_line": 32948,
+      "end_line": 34326,
+      "sample_count": 1379
+    },
+    "segment_0022": {
+      "label": 4,
+      "start_line": 34327,
+      "end_line": 35936,
+      "sample_count": 1610
+    },
+    "segment_0023": {
+      "label": 0,
+      "start_line": 35937,
+      "end_line": 37326,
+      "sample_count": 1390
+    },
+    "segment_0024": {
+      "label": 4,
+      "start_line": 37327,
+      "end_line": 38935,
+      "sample_count": 1609
+    },
+    "segment_0025": {
+      "label": 0,
+      "start_line": 38936,
+      "end_line": 40377,
+      "sample_count": 1442
+    },
+    "segment_0026": {
+      "label": 4,
+      "start_line": 40378,
+      "end_line": 41975,
+      "sample_count": 1598
+    },
+    "segment_0027": {
+      "label": 0,
+      "start_line": 41976,
+      "end_line": 43678,
+      "sample_count": 1703
+    },
+    "segment_0028": {
+      "label": 4,
+      "start_line": 43679,
+      "end_line": 44957,
+      "sample_count": 1279
+    },
+    "segment_0029": {
+      "label": 0,
+      "start_line": 44958,
+      "end_line": 46438,
+      "sample_count": 1481
+    },
+    "segment_0030": {
+      "label": 4,
+      "start_line": 46439,
+      "end_line": 47896,
+      "sample_count": 1458
+    },
+    "segment_0031": {
+      "label": 0,
+      "start_line": 47897,
+      "end_line": 49274,
+      "sample_count": 1378
+    },
+    "segment_0032": {
+      "label": 4,
+      "start_line": 49275,
+      "end_line": 50786,
+      "sample_count": 1512
+    },
+    "segment_0033": {
+      "label": 0,
+      "start_line": 50787,
+      "end_line": 52460,
+      "sample_count": 1674
+    },
+    "segment_0034": {
+      "label": 4,
+      "start_line": 52461,
+      "end_line": 53869,
+      "sample_count": 1409
+    },
+    "segment_0035": {
+      "label": 0,
+      "start_line": 53870,
+      "end_line": 55492,
+      "sample_count": 1623
+    },
+    "segment_0036": {
+      "label": 4,
+      "start_line": 55493,
+      "end_line": 56831,
+      "sample_count": 1339
+    },
+    "segment_0037": {
+      "label": 0,
+      "start_line": 56832,
+      "end_line": 58633,
+      "sample_count": 1802
+    },
+    "segment_0038": {
+      "label": 4,
+      "start_line": 58634,
+      "end_line": 59881,
+      "sample_count": 1248
+    },
+    "segment_0039": {
+      "label": 0,
+      "start_line": 59882,
+      "end_line": 61426,
+      "sample_count": 1545
+    },
+    "segment_0040": {
+      "label": 4,
+      "start_line": 61427,
+      "end_line": 62846,
+      "sample_count": 1420
+    },
+    "segment_0041": {
+      "label": 0,
+      "start_line": 62847,
+      "end_line": 64220,
+      "sample_count": 1374
+    },
+    "segment_0042": {
+      "label": 3,
+      "start_line": 64221,
+      "end_line": 65825,
+      "sample_count": 1605
+    },
+    "segment_0043": {
+      "label": 0,
+      "start_line": 65826,
+      "end_line": 67391,
+      "sample_count": 1566
+    },
+    "segment_0044": {
+      "label": 3,
+      "start_line": 67392,
+      "end_line": 68824,
+      "sample_count": 1433
+    },
+    "segment_0045": {
+      "label": 0,
+      "start_line": 68825,
+      "end_line": 70211,
+      "sample_count": 1387
+    },
+    "segment_0046": {
+      "label": 3,
+      "start_line": 70212,
+      "end_line": 71700,
+      "sample_count": 1489
+    },
+    "segment_0047": {
+      "label": 0,
+      "start_line": 71701,
+      "end_line": 73074,
+      "sample_count": 1374
+    },
+    "segment_0048": {
+      "label": 3,
+      "start_line": 73075,
+      "end_line": 74755,
+      "sample_count": 1681
+    },
+    "segment_0049": {
+      "label": 0,
+      "start_line": 74756,
+      "end_line": 76173,
+      "sample_count": 1418
+    },
+    "segment_0050": {
+      "label": 3,
+      "start_line": 76174,
+      "end_line": 77782,
+      "sample_count": 1609
+    },
+    "segment_0051": {
+      "label": 0,
+      "start_line": 77783,
+      "end_line": 79164,
+      "sample_count": 1382
+    },
+    "segment_0052": {
+      "label": 3,
+      "start_line": 79165,
+      "end_line": 80679,
+      "sample_count": 1515
+    },
+    "segment_0053": {
+      "label": 0,
+      "start_line": 80680,
+      "end_line": 82485,
+      "sample_count": 1806
+    },
+    "segment_0054": {
+      "label": 3,
+      "start_line": 82486,
+      "end_line": 83736,
+      "sample_count": 1251
+    },
+    "segment_0055": {
+      "label": 0,
+      "start_line": 83737,
+      "end_line": 85205,
+      "sample_count": 1469
+    },
+    "segment_0056": {
+      "label": 3,
+      "start_line": 85206,
+      "end_line": 86782,
+      "sample_count": 1577
+    },
+    "segment_0057": {
+      "label": 0,
+      "start_line": 86783,
+      "end_line": 88132,
+      "sample_count": 1350
+    },
+    "segment_0058": {
+      "label": 3,
+      "start_line": 88133,
+      "end_line": 89776,
+      "sample_count": 1644
+    },
+    "segment_0059": {
+      "label": 0,
+      "start_line": 89777,
+      "end_line": 91116,
+      "sample_count": 1340
+    },
+    "segment_0060": {
+      "label": 3,
+      "start_line": 91117,
+      "end_line": 92720,
+      "sample_count": 1604
+    },
+    "segment_0061": {
+      "label": 0,
+      "start_line": 92721,
+      "end_line": 94087,
+      "sample_count": 1367
+    },
+    "segment_0062": {
+      "label": 2,
+      "start_line": 94088,
+      "end_line": 95869,
+      "sample_count": 1782
+    },
+    "segment_0063": {
+      "label": 0,
+      "start_line": 95870,
+      "end_line": 97041,
+      "sample_count": 1172
+    },
+    "segment_0064": {
+      "label": 2,
+      "start_line": 97042,
+      "end_line": 98741,
+      "sample_count": 1700
+    },
+    "segment_0065": {
+      "label": 0,
+      "start_line": 98742,
+      "end_line": 100021,
+      "sample_count": 1280
+    },
+    "segment_0066": {
+      "label": 2,
+      "start_line": 100022,
+      "end_line": 101316,
+      "sample_count": 1295
+    },
+    "segment_0067": {
+      "label": 0,
+      "start_line": 101317,
+      "end_line": 103053,
+      "sample_count": 1737
+    },
+    "segment_0068": {
+      "label": 2,
+      "start_line": 103054,
+      "end_line": 104751,
+      "sample_count": 1698
+    },
+    "segment_0069": {
+      "label": 0,
+      "start_line": 104752,
+      "end_line": 106068,
+      "sample_count": 1317
+    },
+    "segment_0070": {
+      "label": 2,
+      "start_line": 106069,
+      "end_line": 107794,
+      "sample_count": 1726
+    },
+    "segment_0071": {
+      "label": 0,
+      "start_line": 107795,
+      "end_line": 109045,
+      "sample_count": 1251
+    },
+    "segment_0072": {
+      "label": 2,
+      "start_line": 109046,
+      "end_line": 110644,
+      "sample_count": 1599
+    },
+    "segment_0073": {
+      "label": 0,
+      "start_line": 110645,
+      "end_line": 112023,
+      "sample_count": 1379
+    },
+    "segment_0074": {
+      "label": 2,
+      "start_line": 112024,
+      "end_line": 113629,
+      "sample_count": 1606
+    },
+    "segment_0075": {
+      "label": 0,
+      "start_line": 113630,
+      "end_line": 115158,
+      "sample_count": 1529
+    },
+    "segment_0076": {
+      "label": 2,
+      "start_line": 115159,
+      "end_line": 116680,
+      "sample_count": 1522
+    },
+    "segment_0077": {
+      "label": 0,
+      "start_line": 116681,
+      "end_line": 118031,
+      "sample_count": 1351
+    },
+    "segment_0078": {
+      "label": 2,
+      "start_line": 118032,
+      "end_line": 119651,
+      "sample_count": 1620
+    },
+    "segment_0079": {
+      "label": 0,
+      "start_line": 119652,
+      "end_line": 120945,
+      "sample_count": 1294
+    },
+    "segment_0080": {
+      "label": 2,
+      "start_line": 120946,
+      "end_line": 122711,
+      "sample_count": 1766
+    },
+    "segment_0081": {
+      "label": 0,
+      "start_line": 122712,
+      "end_line": 123977,
+      "sample_count": 1266
+    },
+    "segment_0082": {
+      "label": 1,
+      "start_line": 123978,
+      "end_line": 125500,
+      "sample_count": 1523
+    },
+    "segment_0083": {
+      "label": 0,
+      "start_line": 125501,
+      "end_line": 126927,
+      "sample_count": 1427
+    },
+    "segment_0084": {
+      "label": 1,
+      "start_line": 126928,
+      "end_line": 128492,
+      "sample_count": 1565
+    },
+    "segment_0085": {
+      "label": 0,
+      "start_line": 128493,
+      "end_line": 129891,
+      "sample_count": 1399
+    },
+    "segment_0086": {
+      "label": 1,
+      "start_line": 129892,
+      "end_line": 131461,
+      "sample_count": 1570
+    },
+    "segment_0087": {
+      "label": 0,
+      "start_line": 131462,
+      "end_line": 133001,
+      "sample_count": 1540
+    },
+    "segment_0088": {
+      "label": 1,
+      "start_line": 133002,
+      "end_line": 134480,
+      "sample_count": 1479
+    },
+    "segment_0089": {
+      "label": 0,
+      "start_line": 134481,
+      "end_line": 135835,
+      "sample_count": 1355
+    },
+    "segment_0090": {
+      "label": 1,
+      "start_line": 135836,
+      "end_line": 137419,
+      "sample_count": 1584
+    },
+    "segment_0091": {
+      "label": 0,
+      "start_line": 137420,
+      "end_line": 138798,
+      "sample_count": 1379
+    },
+    "segment_0092": {
+      "label": 1,
+      "start_line": 138799,
+      "end_line": 140371,
+      "sample_count": 1573
+    },
+    "segment_0093": {
+      "label": 0,
+      "start_line": 140372,
+      "end_line": 141850,
+      "sample_count": 1479
+    },
+    "segment_0094": {
+      "label": 1,
+      "start_line": 141851,
+      "end_line": 143415,
+      "sample_count": 1565
+    },
+    "segment_0095": {
+      "label": 0,
+      "start_line": 143416,
+      "end_line": 144935,
+      "sample_count": 1520
+    },
+    "segment_0096": {
+      "label": 1,
+      "start_line": 144936,
+      "end_line": 146381,
+      "sample_count": 1446
+    },
+    "segment_0097": {
+      "label": 0,
+      "start_line": 146382,
+      "end_line": 147920,
+      "sample_count": 1539
+    },
+    "segment_0098": {
+      "label": 1,
+      "start_line": 147921,
+      "end_line": 149345,
+      "sample_count": 1425
+    },
+    "segment_0099": {
+      "label": 0,
+      "start_line": 149346,
+      "end_line": 150804,
+      "sample_count": 1459
+    },
+    "segment_0100": {
+      "label": 1,
+      "start_line": 150805,
+      "end_line": 152552,
+      "sample_count": 1748
+    },
+    "segment_0101": {
+      "label": 0,
+      "start_line": 152553,
+      "end_line": 158536,
+      "sample_count": 5984
+    }
+  }
+}
