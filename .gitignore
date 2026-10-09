@@ -9,16 +9,6 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 
-# Classifier virtual environment (keep project source files tracked)
-/wearable/classifiers/NNClassifier_Venv/Lib/
-/wearable/classifiers/NNClassifier_Venv/Scripts/
-/wearable/classifiers/NNClassifier_Venv/share/
-/wearable/classifiers/NNClassifier_Venv/Include/
-/wearable/classifiers/NNClassifier_Venv/bin/
-/wearable/classifiers/NNClassifier_Venv/lib/
-/wearable/classifiers/NNClassifier_Venv/lib64/
-/wearable/classifiers/NNClassifier_Venv/pyvenv.cfg
-
 # ROS 2 / colcon
 ros_ws/build/
 ros_ws/install/
