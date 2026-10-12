@@ -222,7 +222,7 @@ def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
                 2,
             )
         # these are the knuckles
-        index_mcp = filtered_landmarks[hand_index][5]
+        index_mcp = filtered_landmarks[hand_index][2]
         pinky_mcp = filtered_landmarks[hand_index][17]
 
 
