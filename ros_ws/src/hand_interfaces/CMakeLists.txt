@@ -12,6 +12,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/GripperStatus.msg"
   "msg/ContactState.msg"
   "msg/HapticCommand.msg"
+  "msg/EeTargetStatus.msg"
   DEPENDENCIES std_msgs geometry_msgs
 )
 
