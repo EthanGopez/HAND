@@ -134,7 +134,7 @@ def open_capture(source: int | str, cv2: Any) -> Any:
 '''
 # this is the new video capture source that i fixed sorta?
 def open_capture(source, cv2):
-    return cv2.VideoCapture('http://10.150.16.215:5000/video')
+    return cv2.VideoCapture('http://host.docker.internal:5000/video')
 
 def warm_up_camera(capture: Any) -> bool:
     """Discard initial webcam frames while exposure and focus settle."""
@@ -245,7 +245,8 @@ def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
         # the hand is shrinking or something, and if the hand is close the robot would think 
         # the hand is growing. using the depth as a multiplier, the xyz scales with the depth,
         # making the xyz more accurate to the actual size of the hand
-        depth_estimate = 1000.0 / max(palm_width, 1)
+        depth_estimate = 466.67 / max(palm_width, 1)
+        print(f"Palm width: {palm_width:.2f}, Depth estimate: {depth_estimate:.2f}")
         # note for later, i wanna do some testing to see what the depth estimate is at 
         # different distances from the camera, and then use that to make a more accurate 
         # depth estimate, using actual units like centimeters or inches, instead of 
