@@ -30,6 +30,17 @@ MODEL_URL = (
 DEFAULT_MODEL = Path.home() / ".cache" / "mediapipe" / "hand_landmarker.task"
 DEFAULT_OUTPUT = Path("hand_landmarks.csv")
 
+DEFAULT_PALM_OUTPUT = Path("palm_center.csv")
+
+# Camera is fixed, so these are hard coded.
+# DEPTH_CONSTANT: depth_estimate = DEPTH_CONSTANT / palm_width_px (same units as before)
+# PALM_WIDTH_M: real index-to-pinky knuckle width, used as the scale reference for
+# x/y so no focal length is needed. Set to 1.0 to get x/y in "palm widths".
+DEPTH_CONSTANT = 466.67
+PALM_WIDTH_M = 0.085
+
+PALM_CSV_FIELDS = ("timestamp_ms", "hand_index", "center_x", "center_y", "center_z")
+
 CSV_FIELDS = (
     "frame_index",
     "timestamp_ms",
@@ -61,6 +72,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_OUTPUT,
         help=f"CSV destination (default: {DEFAULT_OUTPUT}).",
+    )
+    parser.add_argument(
+        "--palm-output",
+        type=Path,
+        default=DEFAULT_PALM_OUTPUT,
+        help=f"Palm center CSV destination (default: {DEFAULT_PALM_OUTPUT}).",
     )
     parser.add_argument(
         "--no-output",
@@ -151,7 +168,80 @@ def warm_up_camera(capture: Any) -> bool:
 # 90% of what i wrote is comments tbh
 # holy yap
 
-def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
+def track_palms(result: Any, width: int, height: int) -> dict[int, dict[str, float]]:
+    """EMA-smooth landmarks and compute palm center plus depth-scaled position."""
+    palms = {}
+    for hand_index, landmarks in enumerate(result.hand_landmarks):
+        points = [
+            (int(landmark.x * width), int(landmark.y * height))
+            for landmark in landmarks
+        ]
+        # filtered_landmarks is the EMA smoothed version of the landmarks.
+        # current frame is weighted EMA_ALPHA, previous frame is 1-EMA_ALPHA
+        if hand_index not in filtered_landmarks:
+            filtered_landmarks[hand_index] = points.copy()
+        else:
+            filtered_landmarks[hand_index] = [
+                (
+                    int(EMA_ALPHA * current[0] + (1 - EMA_ALPHA) * previous[0]),
+                    int(EMA_ALPHA * current[1] + (1 - EMA_ALPHA) * previous[1]),
+                )
+                for current, previous in zip(points, filtered_landmarks[hand_index])
+            ]
+        smoothed = filtered_landmarks[hand_index]
+
+        # center of palm: average of the wrist and the finger base landmarks
+        palm_indices = [0, 1, 5, 9, 13, 17]
+        center_x = int(sum(smoothed[i][0] for i in palm_indices) / len(palm_indices))
+        center_y = int(sum(smoothed[i][1] for i in palm_indices) / len(palm_indices))
+
+        # palm width in pixels (distance between the index and pinky knuckles)
+        index_mcp = smoothed[2]
+        pinky_mcp = smoothed[17]
+        palm_width = math.hypot(
+            index_mcp[0] - pinky_mcp[0], index_mcp[1] - pinky_mcp[1]
+        )
+        # larger palm width -> hand is closer to the camera
+        depth_estimate = DEPTH_CONSTANT / max(palm_width, 1)
+
+        # palm width is the ruler: meters per pixel = PALM_WIDTH_M / palm_width.
+        # (equal to the pinhole X = (u - cx) * Z / f with the focal length cancelled)
+        meters_per_pixel = PALM_WIDTH_M / max(palm_width, 1)
+        palms[hand_index] = {
+            "pixel_x": center_x,
+            "pixel_y": center_y,
+            "palm_width": palm_width,
+            "depth_estimate": depth_estimate,
+            "center_x": (center_x - width / 2) * meters_per_pixel,
+            "center_y": (center_y - height / 2) * meters_per_pixel,
+            "center_z": depth_estimate,
+        }
+    return palms
+
+
+def write_palm_result(
+    writer: csv.DictWriter[str] | None,
+    palms: dict[int, dict[str, float]],
+    timestamp_ms: int,
+) -> None:
+    """Write one row per tracked hand with the depth-scaled palm center."""
+    if writer is None:
+        return
+    for hand_index, palm in palms.items():
+        writer.writerow(
+            {
+                "timestamp_ms": timestamp_ms,
+                "hand_index": hand_index,
+                "center_x": f"{palm['center_x']:.4f}",
+                "center_y": f"{palm['center_y']:.4f}",
+                "center_z": f"{palm['center_z']:.4f}",
+            }
+        )
+
+
+def draw_result(
+    frame: Any, result: Any, palms: dict[int, dict[str, float]], vision: Any, cv2: Any
+) -> None:
     """Draw the Tasks API landmarks and connections on one video frame."""
     height, width = frame.shape[:2]
     for hand_index, landmarks in enumerate(result.hand_landmarks):
@@ -159,49 +249,11 @@ def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
             (int(landmark.x * width), int(landmark.y * height))
             for landmark in landmarks
         ]
-        global filtered_landmarks
-
-        # had to swap all the point stuff to filtered_landmarks instead of points, 
-        # because points is just the current frame's landmarks, and filtered_landmarks 
-        # is the EMA smoothed version of the landmarks, which is what i want to use for 
-        # drawing and calculating palm center and depth estimate and stuff.
-        # that was hell :)
-        if hand_index not in filtered_landmarks:
-            filtered_landmarks[hand_index] = points.copy()
-        else:
-            filtered_landmarks[hand_index] = [
-                (
-                    # ema stuff
-                    # current frame is weighted EMA_ALPHA, 
-                    # previous frame is weighted 1-EMA_ALPHA
-                    int(
-                        EMA_ALPHA * current[0]
-                        + (1 - EMA_ALPHA) * previous[0]
-                    ),
-                    int(
-                        EMA_ALPHA * current[1]
-                        + (1 - EMA_ALPHA) * previous[1]
-                    ),
-                )
-                for current, previous in zip(
-                    points,
-                    filtered_landmarks[hand_index],
-                )
-            ]
-        # calculate center of palm using these landmarks
-        palm_indices = [0, 1, 5, 9, 13, 17]
-
-        # these are calculated by adding x/y coords, then dividing by len(num of coords)
-        # set x value of palm center
-        center_x = int(
-            sum(filtered_landmarks[hand_index][i][0] for i in palm_indices)
-            / len(palm_indices)
-        )
-        # set y value of palm center
-        center_y = int(
-            sum(filtered_landmarks[hand_index][i][1] for i in palm_indices)
-            / len(palm_indices)
-        )
+        # filtered_landmarks / palm info are updated by track_palms() before drawing
+        palm = palms[hand_index]
+        center_x = palm["pixel_x"]
+        center_y = palm["pixel_y"]
+        depth_estimate = palm["depth_estimate"]
         # draw a circle at the palm center (green because green is good)
         cv2.circle(
             frame,
@@ -221,40 +273,19 @@ def draw_result(frame: Any, result: Any, vision: Any, cv2: Any) -> None:
                 (255,255,0),
                 2,
             )
-        # these are the knuckles
-        index_mcp = filtered_landmarks[hand_index][2]
-        pinky_mcp = filtered_landmarks[hand_index][17]
-
-
-        # maybe add a constant for palm width to better compute the
-        # depth estimate. using real units for that may help to
-        # know how far the hand is in real units.
-
-        # this is how the width of the palm is calculated
-        # (distance formula between two points)
-        palm_width = math.sqrt(
-            #index_mcp[0] is x value, while index_mcp[1] is y value, same for pinky_mcp
-            # mcp stands for metacarpophalangeal joint, which is the knuckle joint
-            (index_mcp[0] - pinky_mcp[0])**2 +
-            (index_mcp[1] - pinky_mcp[1])**2
-        )
-        # this is a rough estimate of depth based on the width of the palm in pixels
-        # the larger the palm width, the closer the hand is to the camera, and vice versa
-        # useful bc if hand is far away, points are close together, which distorts the actual 
-        # x, y, and z values of the landmarks, so if the hand is far the robot would think
-        # the hand is shrinking or something, and if the hand is close the robot would think 
-        # the hand is growing. using the depth as a multiplier, the xyz scales with the depth,
-        # making the xyz more accurate to the actual size of the hand
-        depth_estimate = 466.67 / max(palm_width, 1)
-        print(f"Palm width: {palm_width:.2f}, Depth estimate: {depth_estimate:.2f}")
-        # note for later, i wanna do some testing to see what the depth estimate is at 
-        # different distances from the camera, and then use that to make a more accurate 
-        # depth estimate, using actual units like centimeters or inches, instead of 
-        # just a rough estimate based on palm width in pixels.
         cv2.putText(
             frame,
             f"Depth: {depth_estimate:.1f}",
             (center_x + 20, center_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255,255,0),
+            2,
+        )
+        cv2.putText(
+            frame,
+            f"X:{palm['center_x']:.1f} Y:{palm['center_y']:.1f} Z:{palm['center_z']:.1f}",
+            (center_x + 20, center_y + 24),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
             (255,255,0),
@@ -436,6 +467,15 @@ def run(args: argparse.Namespace) -> int:
         writer.writeheader()
         output_file.flush()
 
+    palm_file = None
+    palm_writer = None
+    if output_path is not None:
+        args.palm_output.parent.mkdir(parents=True, exist_ok=True)
+        palm_file = args.palm_output.open("w", newline="", encoding="utf-8")
+        palm_writer = csv.DictWriter(palm_file, fieldnames=PALM_CSV_FIELDS)
+        palm_writer.writeheader()
+        palm_file.flush()
+
     options = vision.HandLandmarkerOptions(
         base_options=python.BaseOptions(model_asset_path=str(args.model)),
         running_mode=vision.RunningMode.VIDEO,
@@ -486,9 +526,13 @@ def run(args: argparse.Namespace) -> int:
                     width,
                     height,
                 )
+                palms = track_palms(result, width, height)
+                write_palm_result(palm_writer, palms, timestamp_ms)
                 if output_file is not None:
                     # Let another program inspect the CSV while capture continues.
                     output_file.flush()
+                if palm_file is not None:
+                    palm_file.flush()
 
                 now = time.perf_counter()
                 instantaneous_fps = 1.0 / max(now - previous_frame_time, 1e-9)
@@ -500,7 +544,7 @@ def run(args: argparse.Namespace) -> int:
                 )
 
                 if not args.no_display:
-                    draw_result(frame, result, vision, cv2)
+                    draw_result(frame, result, palms, vision, cv2)
                     draw_status(
                         frame,
                         result,
@@ -528,6 +572,8 @@ def run(args: argparse.Namespace) -> int:
         capture.release()
         if output_file is not None:
             output_file.close()
+        if palm_file is not None:
+            palm_file.close()
         if not args.no_display:
             cv2.destroyAllWindows()
 
