@@ -24,7 +24,8 @@
     "QT_X11_NO_MITSHM": "1",
     "LIBGL_ALWAYS_SOFTWARE": "1"
   },
-  "forwardPorts": [8765, 5901, 6080],
+  "runArgs": ["-p", "127.0.0.1:6080:6080"],
+  "forwardPorts": [8765, 5901],
   "portsAttributes": {
     "8765": {
       "label": "Foxglove Bridge",
@@ -35,8 +36,8 @@
       "onAutoForward": "silent"
     },
     "6080": {
-      "label": "noVNC",
-      "onAutoForward": "openBrowser"
+      "label": "noVNC (published by Docker on 127.0.0.1:6080)",
+      "onAutoForward": "ignore"
     }
   }
 }

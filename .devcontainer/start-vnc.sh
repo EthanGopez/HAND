@@ -37,7 +37,8 @@ if [[ -r "${X_LOCK}" ]]; then
   fi
 fi
 
-if ! tigervncserver -list 2>/dev/null | grep -q "^${DISPLAY_NUMBER}[[:space:]]"; then
+# Some TigerVNC versions list the display as ":1" and others as "1".
+if ! tigervncserver -list 2>/dev/null | grep -Eq "^:?${DISPLAY_NUMBER#:}[[:space:]]"; then
   tigervncserver "${DISPLAY_NUMBER}" \
     -localhost yes \
     -rfbport "${VNC_PORT}" \
@@ -48,7 +49,10 @@ if ! tigervncserver -list 2>/dev/null | grep -q "^${DISPLAY_NUMBER}[[:space:]]";
 fi
 
 if ! pgrep -f "[w]ebsockify.*${NOVNC_PORT}.*${VNC_PORT}" >/dev/null; then
+  # Listen on all container interfaces so Docker can publish this port to the host
+  # (devcontainer.json binds that to 127.0.0.1 on the host only). The VNC server itself
+  # stays on the container's loopback and has no password.
   setsid -f websockify --web=/usr/share/novnc \
-    "127.0.0.1:${NOVNC_PORT}" "127.0.0.1:${VNC_PORT}" \
+    "0.0.0.0:${NOVNC_PORT}" "127.0.0.1:${VNC_PORT}" \
     > /tmp/novnc.log 2>&1 < /dev/null
 fi
