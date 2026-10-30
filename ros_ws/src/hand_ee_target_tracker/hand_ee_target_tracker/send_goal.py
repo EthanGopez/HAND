@@ -1,4 +1,5 @@
-"""send_goal: give the tracker a point and keep it fed until the arm gets there.
+"""
+send_goal: give the tracker a point and keep it fed until the arm gets there.
 
 The tracker holds position once a goal is older than ``stale_after`` (1 s), so a single
 ``ros2 topic pub --once`` only moves the arm for a second. This tool republishes the

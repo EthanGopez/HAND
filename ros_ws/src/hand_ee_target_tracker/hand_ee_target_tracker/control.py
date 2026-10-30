@@ -1,4 +1,5 @@
-"""Control law for ee_target_tracker. No ROS imports, so it can be tested anywhere.
+"""
+Control law for ee_target_tracker. No ROS imports, so it can be tested anywhere.
 
 Poses are a position (x, y, z) in metres and a quaternion (x, y, z, w), both in
 ``link_base``. See docs/interfaces/ee_target_tracker.md for the mapping.
@@ -51,7 +52,7 @@ def scale(v, s):
 
 
 def is_finite(values):
-    """True if every number is finite (no NaN or infinity)."""
+    """Return True if every number is finite (no NaN or infinity)."""
     return all(math.isfinite(c) for c in values)
 
 
@@ -83,7 +84,8 @@ def quat_conjugate(q):
 
 
 def rotation_vector(q_from, q_to):
-    """Axis times angle of the shortest rotation taking ``q_from`` to ``q_to``.
+    """
+    Return axis times angle of the shortest rotation taking ``q_from`` to ``q_to``.
 
     The vector is expressed in the parent frame (``link_base``), so it can be used
     directly as an angular velocity direction there.
@@ -100,7 +102,7 @@ def rotation_vector(q_from, q_to):
 
 
 def quat_from_rotation_vector(rotvec):
-    """Unit quaternion for a rotation given as axis times angle."""
+    """Return the unit quaternion for a rotation given as axis times angle."""
     angle = norm(rotvec)
     if angle < _SMALL_ANGLE:
         return (0.0, 0.0, 0.0, 1.0)
@@ -109,19 +111,20 @@ def quat_from_rotation_vector(rotvec):
 
 
 def in_workspace(position, lower, upper):
-    """True if ``position`` is inside the axis-aligned box, edges included."""
+    """Return True if ``position`` is inside the axis-aligned box, edges included."""
     return all(lo <= p <= hi for p, lo, hi in zip(position, lower, upper))
 
 
 def is_reached(distance, angle, limits):
-    """True if both errors are within their tolerance."""
+    """Return True if both errors are within their tolerance."""
     return (distance <= limits.position_tolerance
             and angle <= limits.orientation_tolerance)
 
 
 def compute_command(current_position, current_orientation,
                     goal_position, goal_orientation, limits):
-    """Bounded twist toward the goal, plus the setpoint one cycle ahead.
+    """
+    Return a bounded twist toward the goal, plus the setpoint one cycle ahead.
 
     Position and orientation are limited independently, so a large rotation never
     inflates the translation speed. ``current_orientation`` and

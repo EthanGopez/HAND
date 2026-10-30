@@ -1,4 +1,5 @@
-"""ee_target_tracker: turn a slow end-effector goal into a stream Servo can follow.
+"""
+ee_target_tracker: turn a slow end-effector goal into a stream Servo can follow.
 
 See docs/interfaces/ee_target_tracker.md for the contract.
 """
