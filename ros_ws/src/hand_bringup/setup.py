@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'prepare_arm = hand_bringup.prepare_arm:main',
+            'unstick_gazebo_gui = hand_bringup.unstick_gazebo_gui:main',
         ],
     },
 )

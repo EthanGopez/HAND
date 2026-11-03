@@ -1,4 +1,5 @@
-"""xArm6 in Gazebo, driven through MoveIt Servo by exactly one HAND node.
+"""
+xArm6 in Gazebo, driven through MoveIt Servo by exactly one HAND node.
 
 The stock xarm6_moveit_gazebo launch has no Servo in it (the xarm Servo launch files
 cover only fake and real hardware), so this adds a Servo node configured for Gazebo and
@@ -28,7 +29,7 @@ DRIVERS = ('tracker', 'teleop', 'none')
 
 
 def servo_node(context):
-    """MoveIt Servo for the Gazebo arm: same kinematics and limits as move_group."""
+    """Return the Servo node for the Gazebo arm, with the same kinematics as move_group."""
     ros2_control_params = generate_ros2_control_params_temp_file(
         os.path.join(get_package_share_directory('xarm_controller'), 'config',
                      f'{XARM_TYPE}_controllers.yaml'),
@@ -87,6 +88,9 @@ def launch_setup(context, *args, **kwargs):
         # Moves the arm off its singular start pose, then starts Servo. It waits for
         # Gazebo's controller on its own, so it can start with everything else.
         Node(package='hand_bringup', executable='prepare_arm', output='screen'),
+        # gzclient deadlocks on startup under x86 emulation and never opens its window;
+        # this wakes it and raises the window.
+        Node(package='hand_bringup', executable='unstick_gazebo_gui', output='screen'),
     ]
     # Only one node may publish /servo_server/delta_twist_cmds, so exactly one driver
     # is ever started here.

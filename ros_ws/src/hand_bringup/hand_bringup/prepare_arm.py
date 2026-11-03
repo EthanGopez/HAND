@@ -1,4 +1,5 @@
-"""prepare_arm: park the simulated xArm6 where Servo can work from, then start Servo.
+"""
+prepare_arm: park the simulated xArm6 where Servo can work from, then start Servo.
 
 Two things have to happen, in this order, before Servo will follow commands:
 
