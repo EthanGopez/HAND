@@ -8,12 +8,15 @@ behavior, topics and parameters are defined in
   `ee_target/setpoint`, health on `ee_target/status`, twist on
   `/servo_server/delta_twist_cmds` only when `publish_twist` is `true`.
 - `send_goal`: gives the node a point and keeps republishing it until the arm gets there.
+- `sweep`: moves the end effector side to side on repeat (15 minutes by default), for
+  watching the arm in Gazebo.
 - `hand_ee_target_tracker/control.py`: the control law, with no ROS imports.
 
 ```bash
 ros2 run hand_ee_target_tracker send_goal 0.30 0.10 0.25                 # keep the current orientation
 ros2 run hand_ee_target_tracker send_goal 0.30 0.10 0.25 --rpy 3.14159 0 0.6
 ros2 topic echo /ee_target/status
+ros2 run hand_ee_target_tracker sweep --duration 600 --amplitude 0.2   # side to side
 ```
 
 The whole simulation is started by `hand_bringup`; see `ros_ws/README.md`.

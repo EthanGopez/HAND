@@ -69,6 +69,37 @@ class GoalSender(Node):
                 continue
         return None
 
+    def go_to(self, goal, rate, timeout, report=True):
+        """
+        Publish ``goal`` at ``rate`` Hz until the tracker reports it, or ``timeout`` passes.
+
+        Returns 'reached', 'rejected' or 'timeout'.
+        """
+        start = time.monotonic()
+        next_log = start
+        period = 1.0 / rate
+        while rclpy.ok() and time.monotonic() - start < timeout:
+            goal.header.stamp = self.get_clock().now().to_msg()
+            self.pub.publish(goal)
+            end = time.monotonic() + period
+            while time.monotonic() < end:
+                rclpy.spin_once(self, timeout_sec=max(0.0, end - time.monotonic()))
+            status = self.status
+            if status is None or time.monotonic() - start < SETTLE_TIME:
+                continue
+            if report and time.monotonic() >= next_log:
+                self.get_logger().info(
+                    f'{STATE_NAMES.get(status.state, status.state)}: '
+                    f'{status.distance:.3f} m, {status.angle:.3f} rad to go')
+                next_log += 1.0
+            if status.state == EeTargetStatus.REACHED:
+                if report:
+                    self.get_logger().info(f'Reached in {time.monotonic() - start:.1f} s')
+                return 'reached'
+            if status.state == EeTargetStatus.REJECTED:
+                return 'rejected'
+        return 'timeout'
+
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
@@ -114,35 +145,15 @@ def main(argv=None):
         o = goal.pose.orientation
         o.x, o.y, o.z, o.w = orientation
 
-        start = time.monotonic()
-        next_log = start
-        period = 1.0 / args.rate
-        while rclpy.ok() and time.monotonic() - start < args.timeout:
-            goal.header.stamp = node.get_clock().now().to_msg()
-            node.pub.publish(goal)
-            end = time.monotonic() + period
-            while time.monotonic() < end:
-                rclpy.spin_once(node, timeout_sec=max(0.0, end - time.monotonic()))
-            status = node.status
-            if status is None or time.monotonic() - start < SETTLE_TIME:
-                continue
-            if time.monotonic() >= next_log:
-                node.get_logger().info(
-                    f'{STATE_NAMES.get(status.state, status.state)}: '
-                    f'{status.distance:.3f} m, {status.angle:.3f} rad to go')
-                next_log += 1.0
-            if status.state == EeTargetStatus.REACHED:
-                node.get_logger().info(f'Reached in {time.monotonic() - start:.1f} s')
-                code = 0
-                break
-            if status.state == EeTargetStatus.REJECTED:
-                node.get_logger().error('The tracker rejected the goal (see its log)')
-                break
+        outcome = node.go_to(goal, args.rate, args.timeout)
+        if outcome == 'reached':
+            code = 0
+        elif outcome == 'rejected':
+            node.get_logger().error('The tracker rejected the goal (see its log)')
         else:
-            if code:
-                node.get_logger().error(
-                    'Timed out; is the tracker running with publish_twist:=true?'
-                    if node.status is None else f'Timed out after {args.timeout:.0f} s')
+            node.get_logger().error(
+                'Timed out; is the tracker running with publish_twist:=true?'
+                if node.status is None else f'Timed out after {args.timeout:.0f} s')
     except KeyboardInterrupt:
         pass
     finally:

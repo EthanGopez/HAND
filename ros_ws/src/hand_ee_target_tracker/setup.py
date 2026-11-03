@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'ee_target_tracker = hand_ee_target_tracker.tracker_node:main',
             'send_goal = hand_ee_target_tracker.send_goal:main',
+            'sweep = hand_ee_target_tracker.sweep:main',
         ],
     },
 )
