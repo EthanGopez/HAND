@@ -37,6 +37,10 @@ if [[ -r "${X_LOCK}" ]]; then
   fi
 fi
 
+# Container restarts can also leave ~/.vnc/*.pid files behind without an X
+# lock. Clean those before checking: -list otherwise includes '(stale)' rows
+# and would incorrectly skip starting the desktop.
+tigervncserver -list -cleanstale >/dev/null 2>&1
 if ! tigervncserver -list 2>/dev/null | grep -q "^${DISPLAY_NUMBER#:}[[:space:]]"; then
   tigervncserver "${DISPLAY_NUMBER}" \
     -localhost yes \

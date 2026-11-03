@@ -24,7 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'teleop_node = hand_teleop.teleop_node:main'
+            'teleop_node = hand_teleop.teleop_node:main',
+            'mouse_teleop_node = hand_teleop.mouse_teleop_node:main',
         ],
     },
 )
