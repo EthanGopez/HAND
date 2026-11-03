@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>hand_vision</name>
+  <version>0.0.0</version>
+  <description>Camera hand tracking that publishes tripwire-gated HandLandmarks.</description>
+  <maintainer email="matthewshen123123@gmail.com">ms4163a</maintainer>
+  <license>TODO: License declaration</license>
+
+  <depend>rclpy</depend>
+  <depend>hand_interfaces</depend>
+  <depend>geometry_msgs</depend>
+
+  <!-- mediapipe has no rosdep key: pip install mediapipe (see README) -->
+  <exec_depend>python3-opencv</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
