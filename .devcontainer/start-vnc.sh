@@ -37,8 +37,10 @@ if [[ -r "${X_LOCK}" ]]; then
   fi
 fi
 
-# Some TigerVNC versions list the display as ":1" and others as "1".
-if ! tigervncserver -list 2>/dev/null | grep -Eq "^:?${DISPLAY_NUMBER#:}[[:space:]]"; then
+# Some TigerVNC versions list the display as ":1" and others as "1". A server left over
+# from before a container restart is listed as "(stale)" and must not count as running.
+if ! tigervncserver -list 2>/dev/null \
+    | grep -E "^:?${DISPLAY_NUMBER#:}[[:space:]]" | grep -qv '(stale)'; then
   tigervncserver "${DISPLAY_NUMBER}" \
     -localhost yes \
     -rfbport "${VNC_PORT}" \

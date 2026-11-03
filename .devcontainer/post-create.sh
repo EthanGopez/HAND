@@ -14,6 +14,8 @@ apt-get install -y --no-install-recommends \
   python3-venv \
   python3-vcstool \
   tigervnc-standalone-server \
+  wmctrl \
+  x11-utils \
   xfce4 \
   xfce4-goodies
 
