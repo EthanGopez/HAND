@@ -53,5 +53,7 @@ if ! rosdep install \
   exit 1
 fi
 
+bash "${PROJECT_ROOT}/scripts/fix_moveit_versions.sh"
+
 echo 'ROS sources and dependencies are ready.'
 echo 'Next: bash /workspace/scripts/build_ros_workspace.sh'

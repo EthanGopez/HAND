@@ -37,7 +37,7 @@ if [[ -r "${X_LOCK}" ]]; then
   fi
 fi
 
-if ! tigervncserver -list 2>/dev/null | grep -q "^${DISPLAY_NUMBER}[[:space:]]"; then
+if ! tigervncserver -list 2>/dev/null | grep -q "^${DISPLAY_NUMBER#:}[[:space:]]"; then
   tigervncserver "${DISPLAY_NUMBER}" \
     -localhost yes \
     -rfbport "${VNC_PORT}" \
