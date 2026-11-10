@@ -7,8 +7,9 @@ import argparse
 import csv
 from pathlib import Path
 import sys
+import threading
 import time
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.request import urlopen
 from collections import deque
 import math
@@ -185,6 +186,76 @@ def warm_up_camera(capture: Any) -> bool:
             received_image = True
         time.sleep(0.03)
     return received_image
+
+
+# cv2.VideoCapture buffers stream frames, so a loop slower than the camera reads
+# older and older frames and the delay keeps growing. This reads in a background
+# thread and keeps only the newest frame, dropping the ones we were too slow for.
+# (CAP_PROP_BUFFERSIZE would do this, but the HTTP stream backend ignores it.)
+class Frame(NamedTuple):
+    image: Any
+    time: float  # time.monotonic() when the read returned
+    dropped: int  # newer frames skipped since the last one handed out
+
+
+class LatestFrameReader:
+    """Read a capture in a background thread and hand out only the newest frame.
+
+    Once started, only the reader thread touches the capture.
+    """
+
+    def __init__(self, capture: Any) -> None:
+        self._capture = capture
+        self._cond = threading.Condition()
+        self._frame = None
+        self._frame_time = 0.0
+        self._grabbed = 0  # frames read so far
+        self._taken = 0  # value of _grabbed when a frame was last handed out
+        self._ended = False
+        self._stopping = False
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        while not self._stopping:
+            ok, image = self._capture.read()
+            now = time.monotonic()
+            with self._cond:
+                if not ok or image is None:
+                    self._ended = True
+                    self._cond.notify_all()
+                    return
+                self._frame = image
+                self._frame_time = now
+                self._grabbed += 1
+                self._cond.notify_all()
+
+    @property
+    def ended(self) -> bool:
+        with self._cond:
+            return self._ended
+
+    def latest(self, timeout: float | None = None) -> Frame | None:
+        """Newest frame not handed out yet; None on timeout or end of stream."""
+        with self._cond:
+            self._cond.wait_for(
+                lambda: self._grabbed > self._taken or self._ended or self._stopping,
+                timeout,
+            )
+            if self._grabbed == self._taken:
+                return None
+            dropped = self._grabbed - self._taken - 1
+            self._taken = self._grabbed
+            return Frame(self._frame, self._frame_time, dropped)
+
+    def stop(self) -> None:
+        with self._cond:
+            self._stopping = True
+            self._cond.notify_all()
+        self._thread.join(timeout=1.0)
+        # don't release under a read that is stuck on a stalled stream
+        if not self._thread.is_alive():
+            self._capture.release()
 
 
 def palm_center(landmarks: Any, width: int, height: int) -> tuple[int, int]:
@@ -598,12 +669,22 @@ def run(args: argparse.Namespace) -> int:
         print(f"Recording live landmark rows to: {output_path.resolve()}")
     print("Press q or Esc in the video window to stop.")
 
+    # how old frames are by the time they're processed, for the console log
+    frame_age_sum = 0.0
+    frames_dropped = 0
+
+    # warm-up above read the capture directly; from here on only the reader does
+    reader = LatestFrameReader(capture)
     try:
         with vision.HandLandmarker.create_from_options(options) as landmarker:
             while True:
-                ok, frame = capture.read()
-                if not ok or frame is None:
-                    break
+                grabbed = reader.latest(timeout=1.0)
+                if grabbed is None:
+                    if reader.ended:
+                        break
+                    continue  # stream stalled; keep waiting
+                frame = grabbed.image
+                frames_dropped += grabbed.dropped
                 if is_local_camera and not args.no_mirror:
                     frame = cv2.flip(frame, 1)
 
@@ -678,20 +759,25 @@ def run(args: argparse.Namespace) -> int:
                     if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
                         break
 
-                if frame_index % 30 == 0:
+                frame_age_sum += time.monotonic() - grabbed.time
+                if frame_index % 30 == 29:
                     print(
                         f"frame={frame_index:<6} "
                         f"state={'ACTIVE' if active else 'WAITING'} "
                         f"hands={len(result.hand_landmarks)} "
                         f"csv_rows={csv_rows:<8} "
+                        f"age={1000 * frame_age_sum / 30:.0f}ms "
+                        f"dropped={frames_dropped} "
                         f"{first_index_tip_text(tracking_result)}"
                     )
+                    frame_age_sum = 0.0
+                    frames_dropped = 0
 
                 frame_index += 1
                 if args.max_frames is not None and frame_index >= args.max_frames:
                     break
     finally:
-        capture.release()
+        reader.stop()
         if output_file is not None:
             output_file.close()
         if palm_file is not None:
