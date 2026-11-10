@@ -22,9 +22,16 @@ struct GripPose {
 };
 
 const GripPose POSES[] = {
+
+  // 5 poses including rest
+
   //  servo1  servo2  servo3   speed  acc
   { { 4095,   4095,   4095 },  3400,  50 },  // pose 0 (placeholder)
   { { 4095,   4095,   4095 },  3400,  50 },  // pose 1 (placeholder)
+  { { 4095,   4095,   4095 },  3400,  50 },  // pose 2 (placeholder)
+  { { 4095,   4095,   4095 },  3400,  50 },  // pose 3 (placeholder)
+  { { 4095,   4095,   4095 },  3400,  50 },  // pose 4 (placeholder)
+  
   // ... more poses to come
 };
 
