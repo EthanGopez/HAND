@@ -20,7 +20,8 @@ ros_ws/log/
 *.mcap
 data/generated/
 onboarding/vha/hand_tracking_demo/models/
-onboarding/vha/hand_tracking_demo/*.csv
+vision_demos/hand_tracking_demo/*.csv
+*.csv
 
 # Embedded build output
 .pio/
@@ -36,3 +37,4 @@ firmware/**/build/
 # Temporary working files
 tmp/
 *.inspect.ndjson
+hand_landmarks.csv
