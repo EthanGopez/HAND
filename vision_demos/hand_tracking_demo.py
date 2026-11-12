@@ -7,8 +7,9 @@ import argparse
 import csv
 from pathlib import Path
 import sys
+import threading
 import time
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.request import urlopen
 from collections import deque
 import math
@@ -40,6 +41,14 @@ DEPTH_CONSTANT = 466.67
 PALM_WIDTH_M = 0.085
 
 PALM_CSV_FIELDS = ("timestamp_ms", "hand_index", "center_x", "center_y", "center_z")
+
+# tripwire: tracking only starts once a palm center enters a circle in the middle
+# of the frame, so a hand just wandering into view doesn't start driving the robot
+TRIPWIRE_RADIUS = 0.15  # fraction of the shorter frame side
+LOST_TIMEOUT_S = 5.0  # seconds with no hand before going back to waiting
+
+# center of palm: average of the wrist and the finger base landmarks
+PALM_INDICES = (0, 1, 5, 9, 13, 17)
 
 CSV_FIELDS = (
     "frame_index",
@@ -78,6 +87,20 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_PALM_OUTPUT,
         help=f"Palm center CSV destination (default: {DEFAULT_PALM_OUTPUT}).",
+    )
+    parser.add_argument(
+        "--tripwire-radius",
+        type=float,
+        default=TRIPWIRE_RADIUS,
+        help="Radius of the center activation zone as a fraction of the "
+        f"shorter frame side (default: {TRIPWIRE_RADIUS}).",
+    )
+    parser.add_argument(
+        "--lost-timeout",
+        type=float,
+        default=LOST_TIMEOUT_S,
+        help="Seconds without a detected hand before tracking resets and "
+        f"waits for the tripwire again (default: {LOST_TIMEOUT_S}).",
     )
     parser.add_argument(
         "--no-output",
@@ -164,6 +187,142 @@ def warm_up_camera(capture: Any) -> bool:
         time.sleep(0.03)
     return received_image
 
+
+# cv2.VideoCapture buffers stream frames, so a loop slower than the camera reads
+# older and older frames and the delay keeps growing. This reads in a background
+# thread and keeps only the newest frame, dropping the ones we were too slow for.
+# (CAP_PROP_BUFFERSIZE would do this, but the HTTP stream backend ignores it.)
+class Frame(NamedTuple):
+    image: Any
+    time: float  # time.monotonic() when the read returned
+    dropped: int  # newer frames skipped since the last one handed out
+
+
+class LatestFrameReader:
+    """Read a capture in a background thread and hand out only the newest frame.
+
+    Once started, only the reader thread touches the capture.
+    """
+
+    def __init__(self, capture: Any) -> None:
+        self._capture = capture
+        self._cond = threading.Condition()
+        self._frame = None
+        self._frame_time = 0.0
+        self._grabbed = 0  # frames read so far
+        self._taken = 0  # value of _grabbed when a frame was last handed out
+        self._ended = False
+        self._stopping = False
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        while not self._stopping:
+            ok, image = self._capture.read()
+            now = time.monotonic()
+            with self._cond:
+                if not ok or image is None:
+                    self._ended = True
+                    self._cond.notify_all()
+                    return
+                self._frame = image
+                self._frame_time = now
+                self._grabbed += 1
+                self._cond.notify_all()
+
+    @property
+    def ended(self) -> bool:
+        with self._cond:
+            return self._ended
+
+    def latest(self, timeout: float | None = None) -> Frame | None:
+        """Newest frame not handed out yet; None on timeout or end of stream."""
+        with self._cond:
+            self._cond.wait_for(
+                lambda: self._grabbed > self._taken or self._ended or self._stopping,
+                timeout,
+            )
+            if self._grabbed == self._taken:
+                return None
+            dropped = self._grabbed - self._taken - 1
+            self._taken = self._grabbed
+            return Frame(self._frame, self._frame_time, dropped)
+
+    def stop(self) -> None:
+        with self._cond:
+            self._stopping = True
+            self._cond.notify_all()
+        self._thread.join(timeout=1.0)
+        # don't release under a read that is stuck on a stalled stream
+        if not self._thread.is_alive():
+            self._capture.release()
+
+
+def palm_center(landmarks: Any, width: int, height: int) -> tuple[int, int]:
+    """Average the palm landmarks into one pixel point (raw, not smoothed)."""
+    return (
+        int(sum(landmarks[i].x for i in PALM_INDICES) / len(PALM_INDICES) * width),
+        int(sum(landmarks[i].y for i in PALM_INDICES) / len(PALM_INDICES) * height),
+    )
+
+
+class TripwireGate:
+    """Wait for a palm to enter the center zone, then stay active until no
+    hand has been seen for lost_timeout_s seconds."""
+
+    def __init__(self, radius_fraction: float, lost_timeout_s: float) -> None:
+        self.radius_fraction = radius_fraction
+        self.lost_timeout_s = lost_timeout_s
+        self.active = False
+        self.last_seen: float | None = None
+
+    def zone(self, width: int, height: int) -> tuple[tuple[int, int], int]:
+        """Return the zone's center pixel and radius in pixels."""
+        return (width // 2, height // 2), int(min(width, height) * self.radius_fraction)
+
+    def in_zone(self, point: tuple[int, int], width: int, height: int) -> bool:
+        (zone_x, zone_y), radius = self.zone(width, height)
+        return (point[0] - zone_x) ** 2 + (point[1] - zone_y) ** 2 <= radius**2
+
+    def update(self, result: Any, width: int, height: int, now: float) -> bool:
+        """Advance the state machine for one frame and return whether active."""
+        if self.active:
+            # once active, a hand anywhere in frame keeps tracking alive
+            if result.hand_landmarks:
+                self.last_seen = now
+            elif now - self.last_seen >= self.lost_timeout_s:
+                self.active = False
+                self.last_seen = None
+            return self.active
+
+        for landmarks in result.hand_landmarks:
+            if self.in_zone(palm_center(landmarks, width, height), width, height):
+                self.active = True
+                self.last_seen = now
+                break
+        return self.active
+
+    def seconds_lost(self, now: float) -> float:
+        """How long the hand has been missing while active (0 if visible)."""
+        if not self.active or self.last_seen is None:
+            return 0.0
+        return now - self.last_seen
+
+
+def draw_tripwire(
+    frame: Any, result: Any, gate: TripwireGate, cv2: Any
+) -> None:
+    """Draw the activation zone, plus palm dots while waiting so you can aim."""
+    height, width = frame.shape[:2]
+    center, radius = gate.zone(width, height)
+    if gate.active:
+        cv2.circle(frame, center, radius, (80, 220, 120), 1, cv2.LINE_AA)
+        return
+    # orange zone while waiting for the tripwire
+    cv2.circle(frame, center, radius, (0, 165, 255), 2, cv2.LINE_AA)
+    for landmarks in result.hand_landmarks:
+        cv2.circle(frame, palm_center(landmarks, width, height), 8, (200, 200, 200), -1)
+
 # this is where i started messing with shit
 # 90% of what i wrote is comments tbh
 # holy yap
@@ -190,10 +349,8 @@ def track_palms(result: Any, width: int, height: int) -> dict[int, dict[str, flo
             ]
         smoothed = filtered_landmarks[hand_index]
 
-        # center of palm: average of the wrist and the finger base landmarks
-        palm_indices = [0, 1, 5, 9, 13, 17]
-        center_x = int(sum(smoothed[i][0] for i in palm_indices) / len(palm_indices))
-        center_y = int(sum(smoothed[i][1] for i in palm_indices) / len(palm_indices))
+        center_x = int(sum(smoothed[i][0] for i in PALM_INDICES) / len(PALM_INDICES))
+        center_y = int(sum(smoothed[i][1] for i in PALM_INDICES) / len(PALM_INDICES))
 
         # palm width in pixels (distance between the index and pinky knuckles)
         index_mcp = smoothed[2]
@@ -340,10 +497,12 @@ def write_result(
     frame_width: int,
     frame_height: int,
 ) -> int:
-    """Write one row per landmark and return the number of rows written."""
+    """Write one row per landmark and return the number of rows written.
+
+    A result of None (tripwire not active) is recorded as untracked."""
     if writer is None:
         return 0
-    if not result.hand_landmarks:
+    if result is None or not result.hand_landmarks:
         writer.writerow(
             {
                 "frame_index": frame_index,
@@ -387,7 +546,7 @@ def write_result(
 
 def first_index_tip_text(result: Any) -> str:
     """Summarize landmark 8 so data collection is visible while running."""
-    if not result.hand_landmarks:
+    if result is None or not result.hand_landmarks:
         return "Index tip: --"
     tip = result.hand_landmarks[0][8]
     return f"Index tip: x={tip.x:.3f} y={tip.y:.3f} z={tip.z:.3f}"
@@ -396,20 +555,32 @@ def first_index_tip_text(result: Any) -> str:
 def draw_status(
     frame: Any,
     result: Any,
+    gate: TripwireGate,
+    now: float,
     fps: float,
     csv_rows: int,
     recording: bool,
     cv2: Any,
 ) -> None:
-    """Show tracking and recording state in the live preview."""
-    tracked = bool(result.hand_landmarks)
-    status = f"{'TRACKED' if tracked else 'NO HAND'} | {fps:.1f} FPS"
-    color = (80, 220, 120) if tracked else (40, 80, 255)
+    """Show tripwire, tracking and recording state in the live preview."""
+    if not gate.active:
+        status = f"WAITING FOR TRIPWIRE | {fps:.1f} FPS"
+        color = (0, 165, 255)
+    elif result.hand_landmarks:
+        status = f"TRACKING | {fps:.1f} FPS"
+        color = (80, 220, 120)
+    else:
+        status = (
+            f"HAND LOST {gate.seconds_lost(now):.1f}s / "
+            f"{gate.lost_timeout_s:.0f}s | {fps:.1f} FPS"
+        )
+        color = (40, 80, 255)
+    tracking_result = result if gate.active else None
     recording_text = f"CSV rows: {csv_rows}" if recording else "CSV recording: off"
 
     lines = (
         (status, color),
-        (first_index_tip_text(result), (255, 255, 255)),
+        (first_index_tip_text(tracking_result), (255, 255, 255)),
         (recording_text, (255, 255, 255)),
         ("Press q or Esc to stop", (200, 200, 200)),
     )
@@ -490,18 +661,30 @@ def run(args: argparse.Namespace) -> int:
     last_timestamp_ms = -1
     previous_frame_time = time.perf_counter()
     smoothed_fps = 0.0
+    gate = TripwireGate(args.tripwire_radius, args.lost_timeout)
 
     print(f"MediaPipe {mp.__version__}; model: {args.model}")
+    print("Waiting for a hand to enter the center tripwire zone ...")
     if output_path is not None:
         print(f"Recording live landmark rows to: {output_path.resolve()}")
     print("Press q or Esc in the video window to stop.")
 
+    # how old frames are by the time they're processed, for the console log
+    frame_age_sum = 0.0
+    frames_dropped = 0
+
+    # warm-up above read the capture directly; from here on only the reader does
+    reader = LatestFrameReader(capture)
     try:
         with vision.HandLandmarker.create_from_options(options) as landmarker:
             while True:
-                ok, frame = capture.read()
-                if not ok or frame is None:
-                    break
+                grabbed = reader.latest(timeout=1.0)
+                if grabbed is None:
+                    if reader.ended:
+                        break
+                    continue  # stream stalled; keep waiting
+                frame = grabbed.image
+                frames_dropped += grabbed.dropped
                 if is_local_camera and not args.no_mirror:
                     frame = cv2.flip(frame, 1)
 
@@ -518,15 +701,31 @@ def run(args: argparse.Namespace) -> int:
                 result = landmarker.detect_for_video(mp_image, timestamp_ms)
 
                 height, width = frame.shape[:2]
+                now = time.perf_counter()
+                was_active = gate.active
+                active = gate.update(result, width, height, now)
+                if active and not was_active:
+                    print("Tripwire triggered: hand tracking started.")
+                elif was_active and not active:
+                    print(
+                        f"No hand for {gate.lost_timeout_s:.0f}s: tracking "
+                        "stopped, waiting for tripwire."
+                    )
+                    # drop stale smoothing/trails so the next session starts fresh
+                    filtered_landmarks.clear()
+                    trails.clear()
+                # only hand the landmarks downstream once the tripwire is active
+                tracking_result = result if active else None
+
                 csv_rows += write_result(
                     writer,
-                    result,
+                    tracking_result,
                     frame_index,
                     timestamp_ms,
                     width,
                     height,
                 )
-                palms = track_palms(result, width, height)
+                palms = track_palms(result, width, height) if active else {}
                 write_palm_result(palm_writer, palms, timestamp_ms)
                 if output_file is not None:
                     # Let another program inspect the CSV while capture continues.
@@ -534,7 +733,6 @@ def run(args: argparse.Namespace) -> int:
                 if palm_file is not None:
                     palm_file.flush()
 
-                now = time.perf_counter()
                 instantaneous_fps = 1.0 / max(now - previous_frame_time, 1e-9)
                 previous_frame_time = now
                 smoothed_fps = (
@@ -544,10 +742,14 @@ def run(args: argparse.Namespace) -> int:
                 )
 
                 if not args.no_display:
-                    draw_result(frame, result, palms, vision, cv2)
+                    draw_tripwire(frame, result, gate, cv2)
+                    if active:
+                        draw_result(frame, result, palms, vision, cv2)
                     draw_status(
                         frame,
                         result,
+                        gate,
+                        now,
                         smoothed_fps,
                         csv_rows,
                         output_path is not None,
@@ -557,19 +759,25 @@ def run(args: argparse.Namespace) -> int:
                     if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
                         break
 
-                if frame_index % 30 == 0:
+                frame_age_sum += time.monotonic() - grabbed.time
+                if frame_index % 30 == 29:
                     print(
                         f"frame={frame_index:<6} "
+                        f"state={'ACTIVE' if active else 'WAITING'} "
                         f"hands={len(result.hand_landmarks)} "
                         f"csv_rows={csv_rows:<8} "
-                        f"{first_index_tip_text(result)}"
+                        f"age={1000 * frame_age_sum / 30:.0f}ms "
+                        f"dropped={frames_dropped} "
+                        f"{first_index_tip_text(tracking_result)}"
                     )
+                    frame_age_sum = 0.0
+                    frames_dropped = 0
 
                 frame_index += 1
                 if args.max_frames is not None and frame_index >= args.max_frames:
                     break
     finally:
-        capture.release()
+        reader.stop()
         if output_file is not None:
             output_file.close()
         if palm_file is not None:
