@@ -11,7 +11,6 @@ import threading
 import time
 from typing import Any, NamedTuple
 from urllib.request import urlopen
-from collections import deque
 import math
 
 EMA_ALPHA = 0.8  # exponential moving average for smoothing landmark positions
@@ -19,10 +18,6 @@ EMA_ALPHA = 0.8  # exponential moving average for smoothing landmark positions
 # and 1-constant is how much of the previous frame's position is used
 filtered_landmarks = {}
 # this is a dictionary that will hold the filtered landmark positions for each hand index
-trails = {}
-# this is just a dictionary that will hold the trail of the palm center for each hand index, 
-# for visual purposes so i know where the hand has been over the last few frames, and so that 
-# i know the palm center is only tracking one hand when both are on screen
 
 MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
@@ -418,17 +413,6 @@ def draw_result(
             (0, 255, 0),
             -1,
         )
-        if hand_index not in trails:
-            trails[hand_index] = deque(maxlen=30)
-        trails[hand_index].append((center_x, center_y))
-        for i in range(1, len(trails[hand_index])):
-            cv2.line(
-                frame,
-                trails[hand_index][i - 1],
-                trails[hand_index][i],
-                (255,255,0),
-                2,
-            )
         cv2.putText(
             frame,
             f"Depth: {depth_estimate:.1f}",
@@ -712,9 +696,8 @@ def run(args: argparse.Namespace) -> int:
                         f"No hand for {gate.lost_timeout_s:.0f}s: tracking "
                         "stopped, waiting for tripwire."
                     )
-                    # drop stale smoothing/trails so the next session starts fresh
+                    # drop stale smoothing so the next session starts fresh
                     filtered_landmarks.clear()
-                    trails.clear()
                 # only hand the landmarks downstream once the tripwire is active
                 tracking_result = result if active else None
 
