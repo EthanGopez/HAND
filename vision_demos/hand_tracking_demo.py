@@ -303,19 +303,71 @@ class TripwireGate:
         return now - self.last_seen
 
 
-def draw_tripwire(
-    frame: Any, result: Any, gate: TripwireGate, cv2: Any
+# tripwire zone colors (BGR)
+ZONE_WAITING = (0, 165, 255)  # orange
+ZONE_ACTIVE = (80, 220, 120)  # green
+ZONE_LOST = (40, 80, 255)  # red
+PULSE_HZ = 0.8  # how fast the waiting zone breathes
+
+
+def tint_circle(
+    frame: Any, center: tuple[int, int], radius: int, color: tuple, alpha: float, cv2: Any
 ) -> None:
-    """Draw the activation zone, plus palm dots while waiting so you can aim."""
+    """Semi-transparent filled circle. Only the circle's bounding box is blended,
+    not the whole frame, so it costs next to nothing."""
+    height, width = frame.shape[:2]
+    x0, y0 = max(center[0] - radius, 0), max(center[1] - radius, 0)
+    x1, y1 = min(center[0] + radius + 1, width), min(center[1] + radius + 1, height)
+    roi = frame[y0:y1, x0:x1]
+    overlay = roi.copy()
+    cv2.circle(overlay, (center[0] - x0, center[1] - y0), radius, color, -1, cv2.LINE_AA)
+    cv2.addWeighted(overlay, alpha, roi, 1 - alpha, 0, dst=roi)
+
+
+def put_label(frame: Any, text: str, center_x: int, y: int, color: tuple, cv2: Any) -> None:
+    """Text centered on center_x, with a dark outline so it reads on any background."""
+    font, scale = cv2.FONT_HERSHEY_SIMPLEX, 0.6
+    (text_width, _), _ = cv2.getTextSize(text, font, scale, 2)
+    origin = (center_x - text_width // 2, y)
+    cv2.putText(frame, text, origin, font, scale, (20, 20, 20), 4, cv2.LINE_AA)
+    cv2.putText(frame, text, origin, font, scale, color, 2, cv2.LINE_AA)
+
+
+def draw_tripwire(
+    frame: Any, result: Any, gate: TripwireGate, now: float, cv2: Any
+) -> None:
+    """Draw the activation zone: a pulsing target while waiting, a thin ring while
+    tracking, and a countdown arc while the hand is lost."""
     height, width = frame.shape[:2]
     center, radius = gate.zone(width, height)
+    label_y = min(center[1] + radius + 26, height - 10)
+
     if gate.active:
-        cv2.circle(frame, center, radius, (80, 220, 120), 1, cv2.LINE_AA)
+        lost = gate.seconds_lost(now)
+        if lost <= 0.0:
+            cv2.circle(frame, center, radius, ZONE_ACTIVE, 1, cv2.LINE_AA)
+            return
+        # hand lost: the arc shrinks as the reset timer runs out
+        remaining = max(0.0, 1.0 - lost / gate.lost_timeout_s)
+        cv2.circle(frame, center, radius, ZONE_LOST, 1, cv2.LINE_AA)
+        cv2.ellipse(frame, center, (radius, radius), -90, 0, 360 * remaining,
+                    ZONE_LOST, 4, cv2.LINE_AA)
+        put_label(frame, f"Resetting in {gate.lost_timeout_s - lost:.1f}s",
+                  center[0], label_y, ZONE_LOST, cv2)
         return
-    # orange zone while waiting for the tripwire
-    cv2.circle(frame, center, radius, (0, 165, 255), 2, cv2.LINE_AA)
+
+    # waiting: soft fill and a ring that gently breathes, so the target is easy to find
+    pulse = 0.5 + 0.5 * math.sin(2 * math.pi * PULSE_HZ * now)
+    tint_circle(frame, center, radius, ZONE_WAITING, 0.10 + 0.10 * pulse, cv2)
+    cv2.circle(frame, center, radius, ZONE_WAITING, 2, cv2.LINE_AA)
+    cv2.circle(frame, center, radius + 4 + int(6 * pulse), ZONE_WAITING, 1, cv2.LINE_AA)
+    cv2.drawMarker(frame, center, ZONE_WAITING, cv2.MARKER_CROSS, 16, 1, cv2.LINE_AA)
+    put_label(frame, "Place hand here", center[0], label_y, ZONE_WAITING, cv2)
+    # palm dot with a guide line to the zone, to show which way to move
     for landmarks in result.hand_landmarks:
-        cv2.circle(frame, palm_center(landmarks, width, height), 8, (200, 200, 200), -1)
+        palm = palm_center(landmarks, width, height)
+        cv2.line(frame, palm, center, (200, 200, 200), 1, cv2.LINE_AA)
+        cv2.circle(frame, palm, 8, (200, 200, 200), -1, cv2.LINE_AA)
 
 # this is where i started messing with shit
 # 90% of what i wrote is comments tbh
@@ -726,7 +778,7 @@ def run(args: argparse.Namespace) -> int:
                 )
 
                 if not args.no_display:
-                    draw_tripwire(frame, result, gate, cv2)
+                    draw_tripwire(frame, result, gate, now, cv2)
                     if active:
                         draw_result(frame, result, palms, vision, cv2)
                     draw_status(
