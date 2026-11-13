@@ -1,0 +1,1 @@
+// This will be our "main" file for the Claw firmware. It will handle the initialization of the system and the main loop that will run continuously.

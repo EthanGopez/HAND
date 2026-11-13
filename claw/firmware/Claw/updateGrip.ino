@@ -54,6 +54,9 @@ void updateGrip(int pos) {
   for (int i = 0; i < NUM_SERVOS; i++) {
     st.WritePosEx(SERVO_IDS[i], p.pos[i], p.speed, p.acc);
   }
+
+  // Implement using SyncWritePosEx
+  // st.SyncWritePosEx(SERVO_IDS, NUM_SERVOS, p.pos, p.speed, p.acc);
 }
 
 void setup() {
