@@ -32,7 +32,7 @@ DEFAULT_PALM_OUTPUT = Path("palm_center.csv")
 # DEPTH_CONSTANT: depth_estimate = DEPTH_CONSTANT / palm_width_px (same units as before)
 # PALM_WIDTH_M: real index-to-pinky knuckle width, used as the scale reference for
 # x/y so no focal length is needed. Set to 1.0 to get x/y in "palm widths".
-DEPTH_CONSTANT = 466.67
+DEPTH_CONSTANT = 4613.0
 PALM_WIDTH_M = 0.085
 
 # one hand only (num_hands=1), so the CSVs have no hand_index column
@@ -399,7 +399,7 @@ def track_palms(result: Any, width: int, height: int) -> dict[int, dict[str, flo
         center_y = int(sum(smoothed[i][1] for i in PALM_INDICES) / len(PALM_INDICES))
 
         # palm width in pixels (distance between the index and pinky knuckles)
-        index_mcp = smoothed[2]
+        index_mcp = smoothed[5]
         pinky_mcp = smoothed[17]
         palm_width = math.hypot(
             index_mcp[0] - pinky_mcp[0], index_mcp[1] - pinky_mcp[1]
