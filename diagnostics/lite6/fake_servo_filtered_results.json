@@ -1,0 +1,147 @@
+[
+  {
+    "case": "+X",
+    "speed_m_s": 0.01,
+    "axis": "x",
+    "start_condition": 18.200189734954037,
+    "end_condition": 18.200189734954037,
+    "servo_status_codes": [
+      0
+    ],
+    "delta_xyz_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_joint_change_degrees": 0.0,
+    "allowed_samples": 0,
+    "blocked_samples": 37,
+    "blocked_reasons": [
+      "Drag would move closer to a singularity; reverse direction"
+    ]
+  },
+  {
+    "case": "-X",
+    "speed_m_s": -0.01,
+    "axis": "x",
+    "start_condition": 18.200189734954037,
+    "end_condition": 17.348946843885017,
+    "servo_status_codes": [
+      0,
+      1
+    ],
+    "delta_xyz_m": [
+      -0.009338960887131348,
+      9.827172623169678e-06,
+      -1.2732111558944048e-05
+    ],
+    "max_joint_change_degrees": 2.8425105891214146,
+    "allowed_samples": 36,
+    "blocked_samples": 0,
+    "blocked_reasons": []
+  },
+  {
+    "case": "+Y",
+    "speed_m_s": 0.01,
+    "axis": "y",
+    "start_condition": 18.200189734954037,
+    "end_condition": 18.200189734954037,
+    "servo_status_codes": [
+      0
+    ],
+    "delta_xyz_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_joint_change_degrees": 0.0,
+    "allowed_samples": 0,
+    "blocked_samples": 37,
+    "blocked_reasons": [
+      "Drag would move closer to a singularity; reverse direction"
+    ]
+  },
+  {
+    "case": "-Y",
+    "speed_m_s": -0.01,
+    "axis": "y",
+    "start_condition": 18.200189734954037,
+    "end_condition": 18.005198224560402,
+    "servo_status_codes": [
+      0,
+      6
+    ],
+    "delta_xyz_m": [
+      1.615229142876151e-05,
+      -0.009622417188208485,
+      -2.9653512720884123e-06
+    ],
+    "max_joint_change_degrees": 3.096060032504713,
+    "allowed_samples": 35,
+    "blocked_samples": 0,
+    "blocked_reasons": []
+  },
+  {
+    "case": "+Z",
+    "speed_m_s": 0.01,
+    "axis": "z",
+    "start_condition": 18.200189734954037,
+    "end_condition": 17.345165647329818,
+    "servo_status_codes": [
+      0,
+      1,
+      6
+    ],
+    "delta_xyz_m": [
+      1.23429800366337e-05,
+      1.1210709156037058e-05,
+      0.009699052933257013
+    ],
+    "max_joint_change_degrees": 3.0553218008126506,
+    "allowed_samples": 35,
+    "blocked_samples": 0,
+    "blocked_reasons": []
+  },
+  {
+    "case": "-Z",
+    "speed_m_s": -0.01,
+    "axis": "z",
+    "start_condition": 18.200189734954037,
+    "end_condition": 18.200189734954037,
+    "servo_status_codes": [
+      0
+    ],
+    "delta_xyz_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_joint_change_degrees": 0.0,
+    "allowed_samples": 0,
+    "blocked_samples": 38,
+    "blocked_reasons": [
+      "Drag would move closer to a singularity; reverse direction"
+    ]
+  },
+  {
+    "case": "all_zero_comparison",
+    "speed_m_s": 0.01,
+    "axis": "x",
+    "start_condition": 3.870828838543692e+16,
+    "end_condition": 3.870828838543692e+16,
+    "servo_status_codes": [
+      0
+    ],
+    "delta_xyz_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_joint_change_degrees": 0.0,
+    "allowed_samples": 0,
+    "blocked_samples": 38,
+    "blocked_reasons": [
+      "Arm is too close to a singularity; reposition before mouse control"
+    ]
+  }
+]

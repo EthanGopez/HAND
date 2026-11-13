@@ -9,6 +9,8 @@ if [[ ! -f /opt/ros/humble/setup.bash ]]; then
   exit 1
 fi
 
+bash "${PROJECT_ROOT}/scripts/apply_xarm_fault_patch.sh"
+
 source /opt/ros/humble/setup.bash
 cd "${ROS_WORKSPACE}"
 colcon build --symlink-install --parallel-workers 2

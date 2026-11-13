@@ -1,0 +1,119 @@
+[INFO] [launch]: All log files can be found below /root/.ros/log/2026-11-10-01-21-36-420754-0e4b66de3015-18882
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [ros2_control_node-1]: process started with pid [18884]
+[INFO] [robot_state_publisher-2]: process started with pid [18886]
+[INFO] [servo_node_main-3]: process started with pid [18888]
+[INFO] [spawner-4]: process started with pid [18890]
+[INFO] [spawner-5]: process started with pid [18892]
+[robot_state_publisher-2] [INFO] [1794273696.821715731] [robot_state_publisher]: got segment link1
+[ros2_control_node-1] [WARN] [1794273696.823634097] [controller_manager]: [Deprecated] Passing the robot description parameter directly to the control_manager node is deprecated. Use '~/robot_description' topic from 'robot_state_publisher' instead.
+[robot_state_publisher-2] [INFO] [1794273696.824629093] [robot_state_publisher]: got segment link2
+[robot_state_publisher-2] [INFO] [1794273696.824670676] [robot_state_publisher]: got segment link3
+[robot_state_publisher-2] [INFO] [1794273696.824679968] [robot_state_publisher]: got segment link4
+[robot_state_publisher-2] [INFO] [1794273696.824687634] [robot_state_publisher]: got segment link5
+[robot_state_publisher-2] [INFO] [1794273696.824694509] [robot_state_publisher]: got segment link6
+[robot_state_publisher-2] [INFO] [1794273696.824701134] [robot_state_publisher]: got segment link_base
+[robot_state_publisher-2] [INFO] [1794273696.824707676] [robot_state_publisher]: got segment link_eef
+[robot_state_publisher-2] [INFO] [1794273696.824714218] [robot_state_publisher]: got segment world
+[ros2_control_node-1] [INFO] [1794273696.827468789] [resource_manager]: Loading hardware 'uf_robot_hardware/UFRobotFakeSystemHardware' 
+[servo_node_main-3] [WARN] [1794273696.843315884] [moveit_servo.servo_node]: Intra-process communication is disabled, consider enabling it by adding: 
+[servo_node_main-3] extra_arguments=[{'use_intra_process_comms' : True}]
+[servo_node_main-3] to the Servo composable node in the launch file
+[ros2_control_node-1] [INFO] [1794273696.844475920] [resource_manager]: Initialize hardware 'uf_robot_hardware/UFRobotFakeSystemHardware' 
+[ros2_control_node-1] [INFO] [1794273696.846544036] [resource_manager]: Successful initialization of hardware 'uf_robot_hardware/UFRobotFakeSystemHardware'
+[ros2_control_node-1] [INFO] [1794273696.849132399] [resource_manager]: 'configure' hardware 'uf_robot_hardware/UFRobotFakeSystemHardware' 
+[ros2_control_node-1] [INFO] [1794273696.849496106] [resource_manager]: Successful 'configure' of hardware 'uf_robot_hardware/UFRobotFakeSystemHardware'
+[ros2_control_node-1] [INFO] [1794273696.849568897] [resource_manager]: 'activate' hardware 'uf_robot_hardware/UFRobotFakeSystemHardware' 
+[ros2_control_node-1] [INFO] [1794273696.849685063] [resource_manager]: Successful 'activate' of hardware 'uf_robot_hardware/UFRobotFakeSystemHardware'
+[ros2_control_node-1] [INFO] [1794273696.857569944] [controller_manager]: update rate is 150 Hz
+[ros2_control_node-1] [INFO] [1794273696.858076484] [controller_manager]: Spawning controller_manager RT thread with scheduler priority: 50
+[ros2_control_node-1] [WARN] [1794273696.859067854] [controller_manager]: Could not enable FIFO RT scheduling policy: with error number <1>(Operation not permitted). See [https://control.ros.org/master/doc/ros2_control/controller_manager/doc/userdoc.html] for details on how to enable realtime scheduling.
+[servo_node_main-3] [INFO] [1794273696.866753611] [moveit_rdf_loader.rdf_loader]: Loaded robot model in 0.0136162 seconds
+[servo_node_main-3] [INFO] [1794273696.867408067] [moveit_robot_model.robot_model]: Loading robot model 'UF_ROBOT'...
+[servo_node_main-3] [INFO] [1794273696.867652774] [moveit_robot_model.robot_model]: No root/virtual joint specified in SRDF. Assuming fixed joint
+[servo_node_main-3] [INFO] [1794273696.982886921] [moveit_ros.current_state_monitor]: Listening to joint states on topic '/joint_states'
+[servo_node_main-3] [INFO] [1794273696.989597599] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Listening to '/attached_collision_object' for attached collision objects
+[servo_node_main-3] [INFO] [1794273696.990140680] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Starting planning scene monitor
+[servo_node_main-3] [INFO] [1794273696.992140087] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Listening to '/planning_scene'
+[servo_node_main-3] [INFO] [1794273696.992610210] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Starting world geometry update monitor for collision objects, attached objects, octomap updates.
+[servo_node_main-3] [INFO] [1794273696.993645747] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Listening to 'collision_object'
+[servo_node_main-3] [INFO] [1794273696.994301994] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Listening to 'planning_scene_world' for planning scene world geometry
+[servo_node_main-3] [WARN] [1794273696.995289865] [moveit.ros.occupancy_map_monitor.middleware_handle]: Resolution not specified for Octomap. Assuming resolution = 0.1 instead
+[servo_node_main-3] [ERROR] [1794273696.995636822] [moveit.ros.occupancy_map_monitor.middleware_handle]: No 3D sensor plugin(s) defined for octomap updates
+[servo_node_main-3] [INFO] [1794273697.005833776] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Publishing maintained planning scene on '/servo_server/publish_planning_scene'
+[ros2_control_node-1] [INFO] [1794273697.042151695] [controller_manager]: Loading controller 'joint_state_broadcaster'
+[spawner-5] [INFO] [1794273697.055696134] [spawner_lite6_traj_controller]: waiting for service /controller_manager/list_controllers to become available...
+[spawner-4] [INFO] [1794273697.073917219] [spawner_joint_state_broadcaster]: [94mLoaded [1mjoint_state_broadcaster[0m
+[ros2_control_node-1] [INFO] [1794273697.076889789] [controller_manager]: Configuring controller 'joint_state_broadcaster'
+[ros2_control_node-1] [INFO] [1794273697.077814826] [joint_state_broadcaster]: 'joints' or 'interfaces' parameter is empty. All available state interfaces will be published
+[spawner-4] [INFO] [1794273697.111672382] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mjoint_state_broadcaster[0m
+[INFO] [spawner-4]: process has finished cleanly [pid 18890]
+[ros2_control_node-1] [INFO] [1794273697.319523236] [controller_manager]: Loading controller 'lite6_traj_controller'
+[ros2_control_node-1] [WARN] [1794273697.330572269] [lite6_traj_controller]: [Deprecated]: "allow_nonzero_velocity_at_trajectory_end" is set to true. The default behavior will change to false.
+[spawner-5] [INFO] [1794273697.335520289] [spawner_lite6_traj_controller]: [94mLoaded [1mlite6_traj_controller[0m
+[ros2_control_node-1] [INFO] [1794273697.336621284] [controller_manager]: Configuring controller 'lite6_traj_controller'
+[ros2_control_node-1] [INFO] [1794273697.337613488] [lite6_traj_controller]: No specific joint names are used for command interfaces. Using 'joints' parameter.
+[ros2_control_node-1] [INFO] [1794273697.338101152] [lite6_traj_controller]: Command interfaces are [position velocity] and state interfaces are [position velocity].
+[ros2_control_node-1] [INFO] [1794273697.338450776] [lite6_traj_controller]: Using 'splines' interpolation method.
+[ros2_control_node-1] [INFO] [1794273697.340045852] [lite6_traj_controller]: Controller state will be published at 25.00 Hz.
+[ros2_control_node-1] [INFO] [1794273697.344982204] [lite6_traj_controller]: Action status changes will be monitored at 10.00 Hz.
+[spawner-5] [INFO] [1794273697.371895833] [spawner_lite6_traj_controller]: [92mConfigured and activated [1mlite6_traj_controller[0m
+[INFO] [spawner-5]: process has finished cleanly [pid 18892]
+[ros2_control_node-1] [INFO] [1794273697.784362973] [lite6_traj_controller]: Received new action goal
+[ros2_control_node-1] [INFO] [1794273697.786441005] [lite6_traj_controller]: Accepted new action goal
+[ros2_control_node-1] [INFO] [1794273698.801287428] [lite6_traj_controller]: Goal reached, success!
+[servo_node_main-3] [WARN] [1794273699.452571990] [moveit_servo.utilities]: Moving away from a singularity, decelerating
+[ros2_control_node-1] [INFO] [1794273701.865084359] [lite6_traj_controller]: Received new action goal
+[ros2_control_node-1] [INFO] [1794273701.865347649] [lite6_traj_controller]: Accepted new action goal
+[ros2_control_node-1] [INFO] [1794273702.867341005] [lite6_traj_controller]: Goal reached, success!
+[servo_node_main-3] [WARN] [1794273703.400483475] [moveit_servo.utilities]: Moving closer to a singularity, decelerating
+[ros2_control_node-1] [INFO] [1794273705.887070552] [lite6_traj_controller]: Received new action goal
+[ros2_control_node-1] [INFO] [1794273705.888790169] [lite6_traj_controller]: Accepted new action goal
+[ros2_control_node-1] [INFO] [1794273706.900683105] [lite6_traj_controller]: Goal reached, success!
+[servo_node_main-3] [WARN] [1794273707.488609412] [moveit_servo.utilities]: Moving closer to a singularity, decelerating
+[ros2_control_node-1] [INFO] [1794273709.957685692] [lite6_traj_controller]: Received new action goal
+[ros2_control_node-1] [INFO] [1794273709.957771775] [lite6_traj_controller]: Accepted new action goal
+[ros2_control_node-1] [INFO] [1794273710.966375184] [lite6_traj_controller]: Goal reached, success!
+[servo_node_main-3] [WARN] [1794273711.575481978] [moveit_servo.utilities]: Moving away from a singularity, decelerating
+[ros2_control_node-1] [INFO] [1794273714.056614249] [lite6_traj_controller]: Received new action goal
+[ros2_control_node-1] [INFO] [1794273714.056664873] [lite6_traj_controller]: Accepted new action goal
+[ros2_control_node-1] [INFO] [1794273715.060655720] [lite6_traj_controller]: Goal reached, success!
+[servo_node_main-3] [WARN] [1794273715.666355289] [moveit_servo.utilities]: Moving away from a singularity, decelerating
+[ros2_control_node-1] [INFO] [1794273718.130968587] [lite6_traj_controller]: Received new action goal
+[ros2_control_node-1] [INFO] [1794273718.131463960] [lite6_traj_controller]: Accepted new action goal
+[ros2_control_node-1] [INFO] [1794273719.140007037] [lite6_traj_controller]: Goal reached, success!
+[servo_node_main-3] [WARN] [1794273719.754945273] [moveit_servo.utilities]: Moving closer to a singularity, decelerating
+[ros2_control_node-1] [INFO] [1794273722.229467943] [lite6_traj_controller]: Received new action goal
+[ros2_control_node-1] [INFO] [1794273722.229537318] [lite6_traj_controller]: Accepted new action goal
+[ros2_control_node-1] [INFO] [1794273723.233519832] [lite6_traj_controller]: Goal reached, success!
+[servo_node_main-3] [WARN] [1794273723.843601214] [moveit_servo.utilities]: Very close to a singularity, emergency stop
+[servo_node_main-3] [WARN] [1794273723.843754130] [moveit_servo.servo_calcs]: Close to a collision, decelerating
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[INFO] [servo_node_main-3]: sending signal 'SIGINT' to process[servo_node_main-3]
+[INFO] [robot_state_publisher-2]: sending signal 'SIGINT' to process[robot_state_publisher-2]
+[INFO] [ros2_control_node-1]: sending signal 'SIGINT' to process[ros2_control_node-1]
+[servo_node_main-3] [INFO] [1794273726.342368444] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[robot_state_publisher-2] [INFO] [1794273726.342368403] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[ros2_control_node-1] [INFO] [1794273726.343566897] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[ros2_control_node-1] [INFO] [1794273726.344424935] [controller_manager]: Shutdown request received....
+[ros2_control_node-1] [INFO] [1794273726.345222223] [controller_manager]: Shutting down all controllers in the controller manager.
+[ros2_control_node-1] [INFO] [1794273726.345283056] [controller_manager]: Deactivating controller 'joint_state_broadcaster'
+[ros2_control_node-1] [INFO] [1794273726.345488430] [controller_manager]: Shutting down controller 'joint_state_broadcaster'
+[ros2_control_node-1] [INFO] [1794273726.345671888] [controller_manager]: Deactivating controller 'lite6_traj_controller'
+[ros2_control_node-1] [INFO] [1794273726.346129053] [controller_manager]: Shutting down controller 'lite6_traj_controller'
+[ros2_control_node-1] [INFO] [1794273726.349108873] [resource_manager]: 'deactivate' hardware 'uf_robot_hardware/UFRobotFakeSystemHardware' 
+[ros2_control_node-1] [INFO] [1794273726.349316747] [resource_manager]: Successful 'deactivate' of hardware 'uf_robot_hardware/UFRobotFakeSystemHardware'
+[ros2_control_node-1] [INFO] [1794273726.349342580] [resource_manager]: 'shutdown' hardware 'uf_robot_hardware/UFRobotFakeSystemHardware' 
+[ros2_control_node-1] [INFO] [1794273726.349378580] [resource_manager]: Successful 'shutdown' of hardware 'uf_robot_hardware/UFRobotFakeSystemHardware'
+[ros2_control_node-1] [INFO] [1794273726.349386788] [controller_manager]: Shutting down the controller manager.
+[servo_node_main-3] [INFO] [1794273726.349466496] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[robot_state_publisher-2] [INFO] [1794273726.351495071] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[ros2_control_node-1] [INFO] [1794273726.354523557] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[servo_node_main-3] Warning: class_loader.ClassLoader: SEVERE WARNING!!! Attempting to unload library while objects created by this loader exist in the heap! You should delete your objects before attempting to unload the library or destroying the ClassLoader. The library will NOT be unloaded.
+[servo_node_main-3]          at line 127 in ./src/class_loader.cpp
+[servo_node_main-3] [INFO] [1794273726.360482614] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Stopped publishing maintained planning scene.
+[servo_node_main-3] [INFO] [1794273726.361056653] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Stopping world geometry monitor
+[servo_node_main-3] [INFO] [1794273726.361669942] [moveit_ros.planning_scene_monitor.planning_scene_monitor]: Stopping planning scene monitor
+[INFO] [robot_state_publisher-2]: process has finished cleanly [pid 18886]
+[INFO] [servo_node_main-3]: process has finished cleanly [pid 18888]
+[INFO] [ros2_control_node-1]: process has finished cleanly [pid 18884]
