@@ -17,11 +17,11 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, classification_report, confusion_matrix, log_loss
 
-NAMES = ['rest', 'power_grip', 'two_finger', 'three_finger', 'pointing_index', 'open_hand']
+NAMES = ['rest', 'grip1', 'grip2', 'grip3', 'grip4', 'grip5', 'grip6', 'grip7', 'grip8', 'grip9', 'grip10']
 LABEL_MAP = {}
 for i in range(len(NAMES)):
     LABEL_MAP[NAMES[i]] = i
-INPUT_FILE = 'EMG_Input.txt'  # Put this file beside train.py.
+INPUT_FILE = 'EMG_Smoothed.txt'  # Put this file beside train.py.
 CHANNELS = (1, 2)            # One-based column numbers; choose TWO of 1..4.
 WINDOW = 100  # 200 ms at 500 Hz per channel
 HOP = 25      # 50 ms
@@ -34,9 +34,6 @@ def features(window, mode):
     return np.sqrt(np.mean(x*x, axis=0))
 
 def load_trials(path, channels=CHANNELS):
-    """Parse the TXT and preserve contiguous segment boundaries."""
-    if len(channels) != 2 or len(set(channels)) != 2 or any(c not in range(1, len(NAMES)) for c in channels):
-        raise ValueError('Choose two different channel numbers from 1..4.')
     columns = [c - 1 for c in channels]
     trials = {}
     active = None
@@ -54,15 +51,15 @@ def load_trials(path, channels=CHANNELS):
                 continue
             fields = line.split(maxsplit=1)  # Accept spaces or tabs.
             if len(fields) != 2:
-                raise ValueError(f'Line {line_number}: expected LABEL followed by four values.')
+                raise ValueError(f'Line {line_number}: expected LABEL followed by two values.')
             name, values = fields
             name = name.casefold()
             try:
                 samples = [float(v) for v in values.split(',')]
             except ValueError as exc:
                 raise ValueError(f'Line {line_number}: invalid numeric values.') from exc
-            if len(samples) != 4:
-                raise ValueError(f'Line {line_number}: expected four channels, got {len(samples)}.')
+            if len(samples) != 2:
+                raise ValueError(f'Line {line_number}: expected two channels, got {len(samples)}.')
             if not np.isfinite(samples).all():
                 raise ValueError(f'Line {line_number}: non-finite sample.')
 
@@ -100,26 +97,59 @@ def load_trials(path, channels=CHANNELS):
         print('Audit Power_Grip labels: there are substantially more segments than other classes.')
     return trials
 
+
 def partition(trials):
-    rng = np.random.default_rng(42)
     parts = [[], [], []]
+
     for label in range(len(NAMES)):
-        keys = [k for k,t in trials.items() if t['label'] == label and len(t['samples']) >= WINDOW]
-        rng.shuffle(keys)
-        nval = max(1, int(round(.2*len(keys))))
-        ntest = nval
-        ntrain = len(keys)-nval-ntest
-        for dest, ids in zip(parts, [keys[:ntrain], keys[ntrain:ntrain+nval], keys[ntrain+nval:]]): dest.extend(ids)
+        keys = [
+            k for k, t in trials.items()
+            if t['label'] == label
+            and len(t['samples']) >= 3 * WINDOW
+        ]
+
+        if not keys:
+            raise ValueError(
+                f'Class {NAMES[label]} has no segment long enough '
+                f'for train/validation/test.'
+            )
+
+        for key in keys:
+            n = len(trials[key]['samples'])
+
+            train_end = int(0.60 * n)
+            val_end = int(0.80 * n)
+
+            # Each tuple identifies a non-overlapping sample range.
+            parts[0].append((key, 0, train_end))
+            parts[1].append((key, train_end, val_end))
+            parts[2].append((key, val_end, n))
+
     return parts
+
 
 def window_trials(trials, keys, mode):
     x, y, windows, owners = [], [], [], []
-    for key in keys:
+
+    for key, start, end in keys:
         t = trials[key]
-        for start in range(0, len(t['samples'])-WINDOW+1, HOP):
-            w = t['samples'][start:start+WINDOW]
-            x.append(features(w, mode)); y.append(t['label']); windows.append(w); owners.append(key)
-    return np.asarray(x), np.asarray(y), np.asarray(windows), np.asarray(owners)
+        samples = t['samples'][start:end]
+
+        for i in range(0, len(samples) - WINDOW + 1, HOP):
+            w = samples[i:i + WINDOW]
+
+            x.append(features(w, mode))
+            y.append(t['label'])
+            windows.append(w)
+            owners.append(key)
+
+    return (
+        np.asarray(x),
+        np.asarray(y),
+        np.asarray(windows),
+        np.asarray(owners)
+    )
+
 
 def literal(value):
     if np.ndim(value) == 0: return f'{float(value):.9e}f'
@@ -181,8 +211,14 @@ def main():
     print('Confusion matrix, rows=true / columns=predicted:\n',confusion_matrix(ytest,pred,labels=np.arange(len(NAMES))))
     # Trial-majority accuracy makes the evaluation unit visible.
     owners = splits[2][3]
-    trial_pred = [np.bincount(pred[owners==k],minlength=len(NAMES)).argmax() for k in ids[2]]
-    trial_true = [trials[k]['label'] for k in ids[2]]
+    trial_pred = [
+        np.bincount(
+            pred[owners == k[0]],
+            minlength=len(NAMES)
+        ).argmax()
+        for k in ids[2]
+    ]
+    trial_true = [trials[k[0]]['label'] for k in ids[2]]
     print('Held-out whole-trial majority accuracy:',accuracy_score(trial_true,trial_pred))
     header = root/'firmware/grip_classifier/model_data.h'
     header.parent.mkdir(parents=True, exist_ok=True)
