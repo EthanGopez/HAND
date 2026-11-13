@@ -35,7 +35,8 @@ DEFAULT_PALM_OUTPUT = Path("palm_center.csv")
 DEPTH_CONSTANT = 466.67
 PALM_WIDTH_M = 0.085
 
-PALM_CSV_FIELDS = ("timestamp_ms", "hand_index", "center_x", "center_y", "center_z")
+# one hand only (num_hands=1), so the CSVs have no hand_index column
+PALM_CSV_FIELDS = ("timestamp_ms", "center_x", "center_y", "center_z")
 
 # tripwire: tracking only starts once a palm center enters a circle in the middle
 # of the frame, so a hand just wandering into view doesn't start driving the robot
@@ -49,7 +50,6 @@ CSV_FIELDS = (
     "frame_index",
     "timestamp_ms",
     "tracked",
-    "hand_index",
     "handedness",
     "handedness_score",
     "landmark_index",
@@ -430,11 +430,10 @@ def write_palm_result(
     """Write one row per tracked hand with the depth-scaled palm center."""
     if writer is None:
         return
-    for hand_index, palm in palms.items():
+    for palm in palms.values():
         writer.writerow(
             {
                 "timestamp_ms": timestamp_ms,
-                "hand_index": hand_index,
                 "center_x": f"{palm['center_x']:.4f}",
                 "center_y": f"{palm['center_y']:.4f}",
                 "center_z": f"{palm['center_z']:.4f}",
@@ -543,7 +542,6 @@ def write_result(
                 "frame_index": frame_index,
                 "timestamp_ms": timestamp_ms,
                 "tracked": "false",
-                "hand_index": -1,
             }
         )
         return 1
@@ -560,7 +558,6 @@ def write_result(
                     "frame_index": frame_index,
                     "timestamp_ms": timestamp_ms,
                     "tracked": "true",
-                    "hand_index": hand_index,
                     "handedness": handedness.category_name,
                     "handedness_score": f"{handedness.score:.6f}",
                     "landmark_index": landmark_index,
