@@ -315,11 +315,15 @@ ros2 control list_controllers
 ## 10. Current boundaries
 
 The simulation wrappers do not connect to a physical arm. The separate
-`launch_mouse_hardware.sh [ROBOT_IP]` wrapper starts `hardware_mouse.launch.py`
-with `uf_robot_hardware/UFRobotSystemHardware`, a joint state broadcaster,
+`launch_mouse_hardware.sh ROBOT_IP` wrapper starts `hardware_mouse.launch.py`
+with the Lite6 model, `lite6_traj_controller`,
+`uf_robot_hardware/UFRobotSystemHardware`, a joint state broadcaster,
 MoveIt Servo, and mouse input. It uses wall-clock ROS time and no joystick.
-`prepare_hardware` waits for active controllers and fresh six-joint feedback,
+`prepare_hardware` waits for active controllers and fresh six-joint feedback
+from both `/joint_states` and the driver's successful-read `/xarm/joint_states`,
 then starts Servo before opening the mouse pad; it sends no ready-pose move.
+A separate `hardware_watchdog` continues monitoring the successful-read stream
+and causes launch shutdown on invalid or missing samples. Its failures latch.
 Hardware defaults are 0.05 m/s and 0.0001 m/pixel. Driver activation enables
 motors and selects Servo mode. See the README for connection instructions and
 physical validation limits. Mouse control requests translation only, operates within its pad,
@@ -332,14 +336,62 @@ When extending the package, keep input mapping in `MouseInput`, window and ROS
 integration in `MouseTeleop`, backend wiring in `hand_bringup`, and vendor robot
 configuration in the corresponding `xarm_ros2` packages.
 
+`singularity_filter.py` builds the configured six-joint base-to-tool chain and
+uses its spatial Jacobian to preview each mouse translation for 0.3 seconds.
+It rejects the whole command when the preview worsens a condition number of
+17 or more, reaches 25, exceeds joint speed limits, or approaches configured
+joint bounds. It never changes the physical joint ranges or Servo thresholds.
+The mouse window shows the rejection reason and consumes rejected displacement
+once. Missing model/invalid pose data yields zero output; joint feedback must
+be fresh in both ROS and monotonic wall time within 0.2 seconds. Physical mouse
+input uses the driver's successful-read stream. This numerical prefilter is an
+additional conservative check, not a physical motion guarantee or path planner.
 
-### Hardware address discovery
+The mouse pad also accepts Space as a keyboard deadman for trackpad use. The
+first press inside the pad establishes the pointer reference; holding Space
+alone requests no motion. Release stops input, and X11 repeat events cannot
+rearm a stroke after pad exit/focus loss. A 1–5x sensitivity slider changes
+mouse gain while preserving the configured speed cap and stopping any current
+stroke. The last rejection reason remains visible for two seconds.
 
-Omitting the address selects `robot_ip:=auto`. `discover_xarm.py` enumerates
-private wired IPv4 LANs (/24 or smaller, at most 1024 candidate addresses),
-then sends the SDK GET_VERSION request to port 502 with bounded concurrent
-connections. It checks transaction, protocol, length, function, and xArm 6 model
-fields. Only one match is accepted; no match or ambiguous results abort before
-hardware actions are constructed. Discovery is read-only and uses no motor or
-motion commands. Explicit IPs bypass discovery. Container networking must expose
-the arm subnet for discovery; it cannot configure the host's Ethernet interface.
+
+### Hardware startup incident
+
+The physical arm identified itself as Lite6 (axis 6, device type 9). The hardware
+launch therefore uses the Lite6 model and requires its explicit controller IP.
+The standalone discovery helper identifies xArm 6 and is excluded from this
+Lite6 hardware launch.
+
+The requested automatic startup pose `[0, 9.93, 31.8, 0, 21.87, 0]` degrees was
+removed after unexpected circular motion was reported. The saved log shows
+that the trajectory controller accepted one initial goal and `prepare_hardware`
+was still awaiting the action result when interrupted. Mouse control had not
+started. The log does not contain the measured/commanded joint samples needed
+to establish why the path appeared circular. Removing the startup action avoids
+issuing that goal again but does not validate the remaining physical stack.
+The hardware initializer now only checks readiness and starts Servo; it has no
+action client or trajectory publisher. Its interrupt cleanup uses
+`rclpy.try_shutdown()` to avoid the secondary double-shutdown exception.
+
+
+### Offline communication fault repairs
+
+`patches/xarm_communication_faults.patch` corrects the pinned vendor source.
+`build_ros_workspace.sh` applies it via `apply_xarm_fault_patch.sh`, which checks
+both the vendor commit and whether the patch is already present. The patch
+preserves the last valid driver message on failed/non-finite SDK samples;
+failed data cannot acquire a fresh driver timestamp. The real hardware plugin
+returns ERROR on read/write failures and latches command transmission off until
+reload. It has no controller-switch service calls in its update path, propagates
+write results, and rejects malformed/non-finite/overflowing joint commands.
+Before enabling motors, activation reads valid positions to seed hold commands
+instead of synthesizing zero joint positions. Activation no longer clears faults.
+
+The watchdog checks successful samples continuously with a 0.5-second timeout,
+strictly increasing ROS sample stamps, and wall-clock arrival age. Replayed
+messages cannot maintain health. It never sends a trajectory. Hardware error
+returns and watchdog shutdown do not constitute a certified physical stop.
+The SDK still performs synchronous reads, so this change prevents repeated
+recovery stalls but does not eliminate the initial SDK read timeout. Actual
+communication reliability, stopping behavior, and arm motion require later
+hardware validation. Existing singularity thresholds remain enabled.

@@ -1,4 +1,4 @@
-"""Mouse-only Servo control of a physical, unprefixed xArm 6."""
+"""Mouse-only Servo control of a physical, unprefixed Lite6."""
 
 import ipaddress
 import math
@@ -17,7 +17,6 @@ from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from hand_bringup.discover_xarm import discover_robot_ip
 from uf_ros_lib.moveit_configs_builder import MoveItConfigsBuilder
 from uf_ros_lib.uf_robot_utils import generate_ros2_control_params_temp_file, load_yaml
 
@@ -37,15 +36,16 @@ def launch_setup(context):
         settings[name] = value
 
     if robot_ip == 'auto':
-        robot_ip = discover_robot_ip()
+        raise ValueError('This Lite6 launch requires an explicit robot_ip; '
+                         'the existing discovery helper identifies xArm 6 only')
 
     controller_file = generate_ros2_control_params_temp_file(
         os.path.join(get_package_share_directory('xarm_controller'),
-                     'config', 'xarm6_controllers.yaml'),
-        update_rate=150, use_sim_time=False, robot_type='xarm',
+                     'config', 'lite6_controllers.yaml'),
+        update_rate=150, use_sim_time=False, robot_type='lite',
     )
     config = MoveItConfigsBuilder(
-        context=context, dof=6, robot_type='xarm', robot_ip=robot_ip,
+        context=context, dof=6, robot_type='lite', robot_ip=robot_ip,
         controllers_name='controllers', limited=True,
         ros2_control_plugin='uf_robot_hardware/UFRobotSystemHardware',
         ros2_control_params=controller_file,
@@ -67,8 +67,8 @@ def launch_setup(context):
     servo_config = load_yaml('xarm_moveit_servo', 'config/xarm_moveit_servo_config.yaml')
     servo_config.update({
         'use_gazebo': False,
-        'move_group_name': 'xarm6',
-        'command_out_topic': '/xarm6_traj_controller/joint_trajectory',
+        'move_group_name': 'lite6',
+        'command_out_topic': '/lite6_traj_controller/joint_trajectory',
     })
     servo = Node(
         package='moveit_servo', executable='servo_node_main', name='servo_server',
@@ -82,12 +82,17 @@ def launch_setup(context):
         package='controller_manager', executable='spawner', output='screen',
         arguments=[name, '--controller-manager', '/controller_manager',
                    '--controller-manager-timeout', '90'],
-    ) for name in ('joint_state_broadcaster', 'xarm6_traj_controller')]
+    ) for name in ('joint_state_broadcaster', 'lite6_traj_controller')]
     ready = Node(package='hand_bringup', executable='prepare_hardware', output='screen',
                  parameters=[{'use_sim_time': False}])
+    watchdog = Node(
+        package='hand_bringup', executable='hardware_watchdog', output='screen',
+        parameters=[{'use_sim_time': False}],
+    )
     mouse = Node(
         package='hand_teleop', executable='mouse_teleop_node', output='screen',
-        parameters=[dict(settings, use_sim_time=False)],
+        parameters=[config.robot_description,
+                    dict(settings, use_sim_time=False, feedback_topic='/xarm/joint_states')],
     )
     rviz = Node(
         package='rviz2', executable='rviz2', output='screen',
@@ -100,10 +105,10 @@ def launch_setup(context):
     def after_ready(event, context):
         if event.returncode != 0:
             return [EmitEvent(event=Shutdown(reason='Hardware readiness check failed'))]
-        return [mouse]
+        return [watchdog, mouse]
 
     def stop_stack(event, context):
-        return [EmitEvent(event=Shutdown(reason='Mouse control or Servo exited'))]
+        return [EmitEvent(event=Shutdown(reason='Mouse control, watchdog, or Servo exited'))]
 
     def spawner_exit(event, context):
         if event.returncode != 0:
@@ -113,6 +118,7 @@ def launch_setup(context):
     handlers = [
         RegisterEventHandler(OnProcessExit(target_action=ready, on_exit=after_ready)),
         RegisterEventHandler(OnProcessExit(target_action=mouse, on_exit=stop_stack)),
+        RegisterEventHandler(OnProcessExit(target_action=watchdog, on_exit=stop_stack)),
         RegisterEventHandler(OnProcessExit(target_action=servo, on_exit=stop_stack)),
     ] + [RegisterEventHandler(OnProcessExit(target_action=node, on_exit=spawner_exit))
          for node in spawners]
@@ -121,8 +127,8 @@ def launch_setup(context):
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('robot_ip', default_value='auto',
-                              description='Controller IPv4 address, or auto for local LAN discovery'),
+        DeclareLaunchArgument('robot_ip',
+                              description='Physical Lite6 controller IPv4 address'),
         DeclareLaunchArgument('max_speed', default_value='0.05',
                               description='Maximum total mouse tool speed in m/s'),
         DeclareLaunchArgument('mouse_gain', default_value='0.0001',

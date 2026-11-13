@@ -29,6 +29,7 @@ setup(
         'console_scripts': [
             'prepare_sim = hand_bringup.prepare_sim:main',
             'prepare_hardware = hand_bringup.prepare_hardware:main',
+            'hardware_watchdog = hand_bringup.hardware_watchdog:main',
         ],
     },
 )

@@ -75,27 +75,19 @@ def test_real_stack_wiring_without_executing_actions():
     assert 'UFRobotFakeSystemHardware' not in description
     params = servo['parameters'][-1]
     assert params['use_sim_time'] is False
-    assert params['moveit_servo']['move_group_name'] == 'xarm6'
-    assert params['moveit_servo']['command_out_topic'] == '/xarm6_traj_controller/joint_trajectory'
+    assert params['moveit_servo']['move_group_name'] == 'lite6'
+    assert params['moveit_servo']['command_out_topic'] == '/lite6_traj_controller/joint_trajectory'
     mouse = next(call for call in calls if call['executable'] == 'mouse_teleop_node')
-    assert mouse['parameters'] == [{'max_speed': 0.05, 'mouse_gain': 0.0001,
-                                    'use_sim_time': False}]
+    assert mouse['parameters'][0]['robot_description'] == description
+    assert mouse['parameters'][1] == {'max_speed': 0.05, 'mouse_gain': 0.0001,
+                                    'use_sim_time': False, 'feedback_topic': '/xarm/joint_states'}
     assert any(call['executable'] == 'prepare_hardware' for call in calls)
+    assert any(call['executable'] == 'hardware_watchdog' for call in calls)
 
 
-def test_auto_address_resolved_before_building_real_stack():
-    with patch.object(hardware, 'discover_robot_ip', return_value='192.0.2.20') as discover, \
-            patch.object(hardware, 'Node', wraps=hardware.Node) as nodes:
-        hardware.launch_setup(context(robot_ip='auto'))
-    discover.assert_called_once_with()
-    servo = next(call.kwargs for call in nodes.call_args_list
-                 if call.kwargs['package'] == 'moveit_servo')
-    assert '192.0.2.20' in servo['parameters'][0]['robot_description']
 
-
-def test_failed_discovery_never_constructs_hardware():
-    with patch.object(hardware, 'discover_robot_ip', side_effect=RuntimeError('No arm')), \
-            patch.object(hardware, 'MoveItConfigsBuilder') as builder:
-        with pytest.raises(RuntimeError, match='No arm'):
+def test_xarm_only_discovery_cannot_select_hardware_for_lite6():
+    with patch.object(hardware, 'MoveItConfigsBuilder') as builder:
+        with pytest.raises(ValueError, match='explicit robot_ip'):
             hardware.launch_setup(context(robot_ip='auto'))
         builder.assert_not_called()

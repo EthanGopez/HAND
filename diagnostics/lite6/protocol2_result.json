@@ -1,0 +1,24 @@
+{
+  "source": "User-provided read-only protocol 2 probe output",
+  "firmware": "6,9,LI1003,DL1000,v1.11.4",
+  "status_byte": 0,
+  "state_hex": "02",
+  "error_warn_hex": "0000",
+  "positions_degrees": [
+    179.9997864429029,
+    0.00010986328691273472,
+    -0.00010986328691273472,
+    0.0,
+    -0.0045776366376935156,
+    -180.01098795314172
+  ],
+  "query_elapsed_ms": {
+    "version": 4.43,
+    "state": 1.61,
+    "errors": 1.6,
+    "legacy_angles": 2.31,
+    "positions": 3.82,
+    "positions_velocity_effort": 1.33
+  },
+  "offline_jacobian_condition_number": 31046.355346323315
+}

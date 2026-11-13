@@ -71,7 +71,7 @@ def launch_setup(context):
     )
     mouse = Node(
         package='hand_teleop', executable='mouse_teleop_node', output='screen',
-        parameters=[{
+        parameters=[config.robot_description, {
             'use_sim_time': True,
             'max_speed': LaunchConfiguration('max_speed'),
             'mouse_gain': LaunchConfiguration('mouse_gain'),

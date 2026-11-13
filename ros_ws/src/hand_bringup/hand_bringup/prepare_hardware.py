@@ -14,7 +14,7 @@ from std_srvs.srv import Trigger
 
 
 JOINTS = {f'joint{i}' for i in range(1, 7)}
-CONTROLLERS = {'joint_state_broadcaster', 'xarm6_traj_controller'}
+CONTROLLERS = {'joint_state_broadcaster', 'lite6_traj_controller'}
 
 
 def valid_feedback(msg, now_ns):
@@ -30,17 +30,22 @@ def main(args=None):
     rclpy.init(args=args)
     node = rclpy.create_node('prepare_hardware')
     feedback = [None]
+    driver_feedback = [None]
     subscription = node.create_subscription(
         JointState, '/joint_states', lambda msg: feedback.__setitem__(0, msg),
         qos_profile_sensor_data,
     )
+    driver_subscription = node.create_subscription(
+        JointState, '/xarm/joint_states',
+        lambda msg: driver_feedback.__setitem__(0, msg), qos_profile_sensor_data)
     controllers = node.create_client(ListControllers, '/controller_manager/list_controllers')
     start = node.create_client(Trigger, '/servo_server/start_servo')
     deadline = time.monotonic() + 90.0
 
     def fresh():
-        return feedback[0] is not None and valid_feedback(
-            feedback[0], node.get_clock().now().nanoseconds)
+        now = node.get_clock().now().nanoseconds
+        return all(msg is not None and valid_feedback(msg, now)
+                   for msg in (feedback[0], driver_feedback[0]))
 
     def wait(future):
         while rclpy.ok() and not future.done() and time.monotonic() < deadline:
@@ -68,7 +73,11 @@ def main(args=None):
             node.get_logger().info('Hardware feedback ready; enabling mouse at current pose')
             return
         raise RuntimeError('Hardware readiness timed out; mouse input remains disabled')
+    except KeyboardInterrupt:
+        # A cancelled initializer must never look successful to the launcher.
+        raise SystemExit(130)
     finally:
         node.destroy_subscription(subscription)
+        node.destroy_subscription(driver_subscription)
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()

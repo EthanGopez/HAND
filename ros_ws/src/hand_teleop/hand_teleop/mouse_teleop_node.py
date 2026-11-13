@@ -7,6 +7,13 @@ import tkinter as tk
 import rclpy
 from geometry_msgs.msg import TwistStamped
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+from sensor_msgs.msg import JointState
+from std_msgs.msg import String
+
+from hand_teleop.singularity_filter import (
+    MotionDecision, SerialModel, SingularityFilter, fresh_feedback, joint_positions,
+)
 
 
 class MouseInput:
@@ -99,18 +106,41 @@ class MouseTeleop(Node):
         max_speed = self.declare_parameter('max_speed', 0.25).value
         mouse_gain = self.declare_parameter('mouse_gain', 0.001).value
         self.controls = MouseInput(max_speed, mouse_gain)
+        self.base_mouse_gain = mouse_gain
+        self.space_held = False
+        self.space_release_pending = None
+        self.guard = None
+        self.guard_error = 'Waiting for robot model'
+        self.last_blocked_reason = ''
+        self.blocked_reason_until = 0.0
+        self.positions = None
+        self.joint_stamp_ns = self.joint_received_wall = None
+        description = self.declare_parameter('robot_description', '').value
+        feedback_topic = self.declare_parameter('feedback_topic', '/joint_states').value
+        self.create_subscription(
+            JointState, feedback_topic, self.joint_feedback,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
+        if description:
+            self.load_model(description)
+        else:
+            self.create_subscription(
+                String, '/robot_description', lambda msg: self.load_model(msg.data),
+                QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                           durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.pub = self.create_publisher(
             TwistStamped, '/servo_server/delta_twist_cmds', 10
         )
         self.root = tk.Tk()
-        self.root.title('xArm mouse control — hold left click to move')
+        self.root.title('Arm mouse control — hold left click or Space to move')
         self.root.resizable(False, False)
         self.root.geometry('+20+220')  # Keep the control pad beside the robot view.
         tk.Label(
             self.root,
             text='Hold left click: horizontal → Y, vertical → Z\n'
+                 'Trackpad: hover inside pad, hold Space, then move pointer\n'
                  'Hold Shift too: vertical → X (up = +X)\n'
-                 'Drag faster = move faster. Hold still / release = stop.',
+                 'Drag faster = move faster. Hold still / release = stop.\n'
+                 'Drags toward singularities are ignored near restricted poses.',
             padx=12, pady=10,
         ).pack()
         self.canvas = tk.Canvas(
@@ -126,6 +156,14 @@ class MouseTeleop(Node):
         )
         self.status = tk.StringVar(value='STOPPED — click and hold inside the pad')
         tk.Label(self.root, textvariable=self.status, padx=8, pady=10).pack()
+        self.guard_status = tk.StringVar(value='Checking robot pose…')
+        tk.Label(self.root, textvariable=self.guard_status, wraplength=480,
+                 fg='#a04b00', padx=8, pady=8).pack()
+        self.sensitivity = tk.DoubleVar(value=1.0)
+        tk.Scale(self.root, from_=1.0, to=5.0, resolution=0.5,
+                 orient=tk.HORIZONTAL, variable=self.sensitivity, length=350,
+                 label=f'Sensitivity multiplier (speed cap {max_speed:.2f} m/s)',
+                 command=self.change_sensitivity).pack()
 
         self.closed = False
         self.shift_keys = set()
@@ -139,13 +177,47 @@ class MouseTeleop(Node):
         self.root.bind('<KeyPress-Shift_R>', self.shift_press)
         self.root.bind('<KeyRelease-Shift_L>', self.shift_release)
         self.root.bind('<KeyRelease-Shift_R>', self.shift_release)
+        self.root.bind('<KeyPress-space>', self.space_press)
+        self.root.bind('<KeyRelease-space>', self.space_release)
         self.root.bind('<Escape>', self.close)
         self.root.protocol('WM_DELETE_WINDOW', self.close)
         self.root.after(50, self.tick)
         self.get_logger().info(
             f'Mouse control ready, total speed cap {max_speed} m/s. '
-            'Hold left click; Shift selects X instead of Z.'
+            'Hold left click or Space inside the pad; Shift selects X instead of Z.'
         )
+
+    def load_model(self, description):
+        try:
+            guard = SingularityFilter(SerialModel(description))
+        except ValueError as error:
+            self.guard = None
+            self.guard_error = str(error)
+            return
+        self.guard = guard
+        self.guard_error = ''
+        # A changed model cannot replay an already held mouse stroke.
+        self.controls.stop()
+
+    def joint_feedback(self, message):
+        try:
+            self.positions = joint_positions(message.name, message.position)
+            self.joint_stamp_ns = (message.header.stamp.sec*1_000_000_000
+                                   + message.header.stamp.nanosec)
+            self.joint_received_wall = time.monotonic()
+        except ValueError:
+            self.positions = None
+            self.controls.stop()
+
+    def filter_velocity(self, velocity, now):
+        if self.guard is None:
+            return MotionDecision((0.,0.,0.), True, self.guard_error)
+        if self.positions is None or not fresh_feedback(
+                self.joint_stamp_ns, self.joint_received_wall,
+                self.get_clock().now().nanoseconds, now):
+            self.controls.stop()
+            return MotionDecision((0.,0.,0.), True, 'Waiting for fresh joint feedback')
+        return self.guard.filter(velocity, self.positions)
 
     def motion(self, event):
         # Coordinates increase downward; signs are handled by MouseInput.
@@ -161,6 +233,38 @@ class MouseTeleop(Node):
         self.canvas.focus_set()
         self.controls.start(event.x, event.y, time.monotonic())
         self.motion(event)
+
+    def change_sensitivity(self, value):
+        # Changing sensitivity cannot retain a pending stroke or start motion.
+        self.stop()
+        self.controls.mouse_gain = self.base_mouse_gain * float(value)
+
+    def space_press(self, event):
+        if self.space_release_pending is not None:
+            self.root.after_cancel(self.space_release_pending)
+            self.space_release_pending = None
+        if self.space_held:
+            return 'break'
+        self.space_held = True
+        x = self.canvas.winfo_pointerx() - self.canvas.winfo_rootx()
+        y = self.canvas.winfo_pointery() - self.canvas.winfo_rooty()
+        if not (0 <= x < self.WIDTH and 0 <= y < self.HEIGHT):
+            return 'break'
+        self.controls.start(x, y, time.monotonic())
+        self.controls.select_shift(bool(event.state & 0x0001))
+        return 'break'
+
+    def space_release(self, event):
+        # X11 key repeat emits release/press pairs. A repeated press cancels
+        # this idle callback; a real release stops before the next timer tick.
+        if self.space_release_pending is None:
+            self.space_release_pending = self.root.after_idle(self.finish_space_release)
+        return 'break'
+
+    def finish_space_release(self):
+        self.space_release_pending = None
+        self.space_held = False
+        self.stop()
 
     def shift_press(self, event):
         self.shift_keys.add(event.keysym)
@@ -181,6 +285,9 @@ class MouseTeleop(Node):
         self.pub.publish(msg)
 
     def stop(self, event=None):
+        if self.space_release_pending is not None:
+            self.root.after_cancel(self.space_release_pending)
+            self.space_release_pending = None
         self.controls.stop()
         self.shift_keys.clear()
         self.publish((0.0, 0.0, 0.0))
@@ -196,11 +303,24 @@ class MouseTeleop(Node):
         if now - self.last_tick > 0.2:
             self.stop()
         self.last_tick = now
-        rclpy.spin_once(self, timeout_sec=0.0)
-        velocity = self.controls.velocity(now)
+        # Drain a small bounded batch so pose updates are not starved by other callbacks.
+        for _ in range(4):
+            rclpy.spin_once(self, timeout_sec=0.0)
+        now = time.monotonic()
+        decision = self.filter_velocity(self.controls.velocity(now), now)
+        velocity = decision.velocity
+        if decision.blocked:
+            self.last_blocked_reason = decision.reason
+            self.blocked_reason_until = now + 2.0
+            reason = 'BLOCKED: ' + decision.reason
+        elif now < getattr(self, 'blocked_reason_until', 0.0):
+            reason = 'Last blocked input: ' + self.last_blocked_reason
+        else:
+            reason = decision.reason
+        self.guard_status.set(reason)
         self.publish(velocity)
         mode = 'Y / X (Shift)' if self.controls.shift else 'Y / Z'
-        state = 'ACTIVE' if self.controls.active else 'STOPPED'
+        state = 'BLOCKED' if decision.blocked else ('ACTIVE' if self.controls.active else 'STOPPED')
         self.status.set(
             f'{state} | {mode} | '
             f'X {velocity[0]:+.3f}  Y {velocity[1]:+.3f}  Z {velocity[2]:+.3f} m/s'

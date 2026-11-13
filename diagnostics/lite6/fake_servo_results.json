@@ -1,0 +1,122 @@
+[
+  {
+    "case": "+X",
+    "speed_m_s": 0.01,
+    "axis": "x",
+    "start_condition": 18.200189734954037,
+    "end_condition": 19.07623857898146,
+    "servo_status_codes": [
+      0,
+      6
+    ],
+    "delta_xyz_m": [
+      0.008972618359344875,
+      1.0114846468720073e-05,
+      -1.2846790870130187e-05
+    ],
+    "max_joint_change_degrees": 2.8369333314612364
+  },
+  {
+    "case": "-X",
+    "speed_m_s": -0.01,
+    "axis": "x",
+    "start_condition": 18.200189734954037,
+    "end_condition": 17.342107850103712,
+    "servo_status_codes": [
+      0,
+      1
+    ],
+    "delta_xyz_m": [
+      -0.009416393266015427,
+      9.868693422523944e-06,
+      -1.2787302161587633e-05
+    ],
+    "max_joint_change_degrees": 2.865620591052391
+  },
+  {
+    "case": "+Y",
+    "speed_m_s": 0.01,
+    "axis": "y",
+    "start_condition": 18.200189734954037,
+    "end_condition": 18.357406617639462,
+    "servo_status_codes": [
+      0,
+      1
+    ],
+    "delta_xyz_m": [
+      1.4497443720618008e-05,
+      0.009026492352994464,
+      -2.1382003171088737e-06
+    ],
+    "max_joint_change_degrees": 3.0454118589150108
+  },
+  {
+    "case": "-Y",
+    "speed_m_s": -0.01,
+    "axis": "y",
+    "start_condition": 18.200189734954037,
+    "end_condition": 18.005827746861982,
+    "servo_status_codes": [
+      0,
+      6
+    ],
+    "delta_xyz_m": [
+      1.610940655025206e-05,
+      -0.009593573683007048,
+      -2.9564952281069257e-06
+    ],
+    "max_joint_change_degrees": 3.087024197595623
+  },
+  {
+    "case": "+Z",
+    "speed_m_s": 0.01,
+    "axis": "z",
+    "start_condition": 18.200189734954037,
+    "end_condition": 17.35170739642991,
+    "servo_status_codes": [
+      0,
+      1,
+      6
+    ],
+    "delta_xyz_m": [
+      1.224175465747157e-05,
+      1.11242152455171e-05,
+      0.009611924374406444
+    ],
+    "max_joint_change_degrees": 3.0281033329181444
+  },
+  {
+    "case": "-Z",
+    "speed_m_s": -0.01,
+    "axis": "z",
+    "start_condition": 18.200189734954037,
+    "end_condition": 19.264939469801906,
+    "servo_status_codes": [
+      0,
+      1
+    ],
+    "delta_xyz_m": [
+      5.381818530464377e-06,
+      5.267539303022151e-06,
+      -0.008778829331894722
+    ],
+    "max_joint_change_degrees": 2.798693280344504
+  },
+  {
+    "case": "all_zero_comparison",
+    "speed_m_s": 0.01,
+    "axis": "x",
+    "start_condition": 3.870828838543692e+16,
+    "end_condition": 3.870828838543692e+16,
+    "servo_status_codes": [
+      0,
+      3
+    ],
+    "delta_xyz_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_joint_change_degrees": 0.0
+  }
+]

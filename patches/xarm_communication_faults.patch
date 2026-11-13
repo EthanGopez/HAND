@@ -1,0 +1,955 @@
+diff --git a/xarm_api/CMakeLists.txt b/xarm_api/CMakeLists.txt
+index cc853f2..38579dd 100644
+--- a/xarm_api/CMakeLists.txt
++++ b/xarm_api/CMakeLists.txt
+@@ -131,4 +131,12 @@ install(DIRECTORY
+   DESTINATION share/${PROJECT_NAME}/
+ )
+ 
++if(BUILD_TESTING)
++  find_package(ament_cmake_gtest REQUIRED)
++  ament_add_gtest(test_joint_feedback test/test_joint_feedback.cpp)
++  target_include_directories(test_joint_feedback PRIVATE include ${xarm_sdk_INCLUDE_DIRS} ${xarm_api_INCLUDE_DIRS})
++  ament_target_dependencies(test_joint_feedback rclcpp sensor_msgs)
++
++endif()
++
+ ament_package()
+diff --git a/xarm_api/include/xarm_api/xarm_driver.h b/xarm_api/include/xarm_api/xarm_driver.h
+index b733295..819902e 100644
+--- a/xarm_api/include/xarm_api/xarm_driver.h
++++ b/xarm_api/include/xarm_api/xarm_driver.h
+@@ -74,7 +74,7 @@ namespace xarm_api
+         bool _firmware_version_is_ge(int major, int minor, int revision);
+ 
+     public:
+-        XArmAPI *arm;
++        XArmAPI *arm = nullptr;
+         int curr_state;
+         int curr_err;
+         int curr_cmdnum;
+diff --git a/xarm_api/package.xml b/xarm_api/package.xml
+index 5cb4537..c6a6587 100644
+--- a/xarm_api/package.xml
++++ b/xarm_api/package.xml
+@@ -25,6 +25,7 @@
+   <exec_depend>launch</exec_depend>
+   <exec_depend>launch_ros</exec_depend>
+ 
++  <test_depend>ament_cmake_gtest</test_depend>
+   <test_depend>ament_lint_auto</test_depend>
+   <test_depend>ament_lint_common</test_depend>
+ 
+diff --git a/xarm_api/src/xarm_driver.cpp b/xarm_api/src/xarm_driver.cpp
+index 7c7c758..c729102 100644
+--- a/xarm_api/src/xarm_driver.cpp
++++ b/xarm_api/src/xarm_driver.cpp
+@@ -6,6 +6,7 @@
+            Vinman <vinman.cub@gmail.com>
+  ============================================================================*/
+ #include "xarm_api/xarm_driver.h"
++#include "xarm_api/joint_feedback.h"
+ 
+ #define CMD_HEARTBEAT_SEC 30 // 30s
+ 
+@@ -40,8 +41,10 @@ namespace xarm_api
+ 
+     XArmDriver::~XArmDriver()
+     {   
+-        arm->set_mode(XARM_MODE::POSE);
+-        arm->disconnect();
++        if (arm != nullptr) {
++            arm->set_mode(XARM_MODE::POSE);
++            arm->disconnect();
++        }
+     }
+ 
+     bool XArmDriver::_get_wait_param(void) 
+@@ -409,12 +412,9 @@ namespace xarm_api
+ 
+     int XArmDriver::update_joint_states(bool initialized, int flag)
+     {
+-        static rclcpp::Time prev_time;
+-        static rclcpp::Time curr_time;
+-        static float prev_position[7] = {0};
+-        static float curr_position[7] = {0};
+-        static float curr_velocity[7] = {0};
+-        static float curr_effort[7] = {0};
++        float curr_position[7] = {0};
++        float curr_velocity[7] = {0};
++        float curr_effort[7] = {0};
+ 
+         int num = 3;
+         if (_firmware_version_is_ge(2, 6, 107)) {
+@@ -432,25 +432,24 @@ namespace xarm_api
+             ret = arm->get_joint_states(curr_position, curr_velocity, curr_effort, num);
+         else
+             ret = arm->get_servo_angle(curr_position);
+-        curr_time = node_->get_clock()->now();
+-
+-        joint_state_msg_.header.stamp = curr_time;
+-        for(int i = 0; i < joint_state_msg_.position.size(); i++)
+-        {
+-            joint_state_msg_.position[i] = (double)curr_position[i];
+-            if (use_new) {
+-                joint_state_msg_.velocity[i] = (double)curr_velocity[i];
+-                joint_state_msg_.effort[i] = (double)curr_effort[i];
+-            }
+-            else {
+-                curr_velocity[i] = !initialized ? 0.0 : (curr_position[i] - prev_position[i]) / (curr_time.seconds() - prev_time.seconds());
+-                joint_state_msg_.velocity[i] = (double)curr_velocity[i];
++        // The SDK can overwrite output buffers with zeros on a timeout.
++        // Preserve the last successful message, including its timestamp.
++        if (ret != 0) return ret;
++        const auto curr_time = node_->get_clock()->now();
++        if (!use_new) {
++            const rclcpp::Time previous(joint_state_msg_.header.stamp, curr_time.get_clock_type());
++            const double dt = (curr_time - previous).seconds();
++            for (size_t i = 0; i < joint_state_msg_.name.size(); ++i) {
++                curr_velocity[i] = initialized && previous.nanoseconds() != 0 && dt > 0
++                    ? (curr_position[i] - joint_state_msg_.position[i]) / dt : 0.0;
++                curr_effort[i] = joint_state_msg_.effort[i];
+             }
+         }
++        ret = commit_joint_feedback(joint_state_msg_, ret, curr_position,
++                                    curr_velocity, curr_effort, curr_time);
++        if (ret != 0) return ret;
+         pub_joint_state(joint_state_msg_);
+-        memcpy(prev_position, curr_position, sizeof(float) * 7);
+-        prev_time = curr_time;
+-        return ret;
++        return 0;
+     }
+ 
+     void XArmDriver::_init_xarm_gripper(void)
+diff --git a/xarm_controller/CMakeLists.txt b/xarm_controller/CMakeLists.txt
+index 00126e2..80aa868 100644
+--- a/xarm_controller/CMakeLists.txt
++++ b/xarm_controller/CMakeLists.txt
+@@ -111,4 +111,12 @@ ament_export_dependencies(
+   rclcpp
+ )
+ 
++if(BUILD_TESTING)
++  find_package(ament_cmake_gtest REQUIRED)
++  ament_add_gtest(test_hardware_faults test/test_hardware_faults.cpp)
++  target_include_directories(test_hardware_faults PRIVATE include ${xarm_sdk_INCLUDE_DIRS} ${xarm_api_INCLUDE_DIRS})
++  ament_target_dependencies(test_hardware_faults hardware_interface rclcpp rclcpp_lifecycle pluginlib sensor_msgs xarm_msgs)
++  target_link_libraries(test_hardware_faults uf_robot_hardware ${xarm_api_LIBRARIES})
++endif()
++
+ ament_package()
+diff --git a/xarm_controller/include/xarm_controller/hardware/uf_robot_system_hardware.h b/xarm_controller/include/xarm_controller/hardware/uf_robot_system_hardware.h
+index 7d1ee1c..e956689 100644
+--- a/xarm_controller/include/xarm_controller/hardware/uf_robot_system_hardware.h
++++ b/xarm_controller/include/xarm_controller/hardware/uf_robot_system_hardware.h
+@@ -23,8 +23,6 @@
+ #include "hardware_interface/types/hardware_interface_return_values.hpp"
+ #include "hardware_interface/types/hardware_interface_type_values.hpp"
+ #include "hardware_interface/visibility_control.h"
+-#include "controller_manager_msgs/srv/list_controllers.hpp"
+-#include "controller_manager_msgs/srv/switch_controller.hpp"
+ #include "xarm_api/xarm_driver.h"
+ 
+ 
+@@ -48,15 +46,17 @@ namespace uf_robot_hardware
+         hardware_interface::return_type read(const rclcpp::Time & time, const rclcpp::Duration &period) final;
+         hardware_interface::return_type write(const rclcpp::Time & time, const rclcpp::Duration &period) final;
+ 
+-        // hardware_interface::return_type prepare_command_mode_switch(const std::vector<std::string>& start_interfaces,
+-        //                                                             const std::vector<std::string>& stop_interfaces) final;
+-
+-        // hardware_interface::return_type perform_command_mode_switch(const std::vector<std::string>& start_interfaces,
+-        //                                                             const std::vector<std::string>& stop_interfaces) final;
+-
+     protected:
+         hardware_interface::HardwareInfo info_;
+-    
++        // Narrow transport hooks let tests exercise this exact control loop
++        // without SDK connections or motor commands.
++        virtual void _init_ufactory_driver(void);
++        virtual int _read_feedback(sensor_msgs::msg::JointState &sample);
++        virtual int _send_joint_command(float *commands);
++        virtual int _activate_driver();
++        virtual bool _xarm_is_ready_read(void);
++        virtual bool _xarm_is_ready_write(void);
++
+     private:
+         int read_code_;
+         int write_code_;
+@@ -73,7 +73,8 @@ namespace uf_robot_hardware
+         bool velocity_control_;
+         bool initialized_;
+         bool read_ready_;
+-        bool reactivate_controller_later_;
++        bool fault_latched_ = false;
++        bool have_feedback_ = false;
+ 
+         long int read_cnts_;
+         long int read_failed_cnts_;
+@@ -91,40 +92,15 @@ namespace uf_robot_hardware
+         rclcpp::Time prev_write_time_;
+ 
+         std::shared_ptr<rclcpp::Node> node_;
+-        std::shared_ptr<rclcpp::Node> hw_node_;
+         xarm_api::XArmDriver xarm_driver_;
+         sensor_msgs::msg::JointState *joint_state_msg_;
+ 
+-        std::shared_ptr<controller_manager_msgs::srv::ListControllers::Request> req_list_controller_;
+-	    std::shared_ptr<controller_manager_msgs::srv::ListControllers::Response> res_list_controller_;
+-        std::shared_ptr<controller_manager_msgs::srv::SwitchController::Request> req_switch_controller_;
+-        std::shared_ptr<controller_manager_msgs::srv::SwitchController::Response> res_switch_controller_;
+-
+-        rclcpp::Client<controller_manager_msgs::srv::ListControllers>::SharedPtr client_list_controller_;
+-        rclcpp::Client<controller_manager_msgs::srv::SwitchController>::SharedPtr client_switch_controller_;
+-
+-        rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr update_goal_state_pub_;
+-        std_msgs::msg::Empty update_goal_state_msg_;
+-
+         bool _check_cmds_is_change(float *prev, float *cur, double threshold = 0.0001);
+-        bool _xarm_is_ready_read(void);
+-        bool _xarm_is_ready_write(void);
+-
+-        bool _need_reset(void);
+-
+-        void _deactivate_controller(void);
+-        void _activate_controller(void);
+-
+-        void _init_ufactory_driver(void);
+-
+-        template<typename ServiceT, typename SharedRequest = typename ServiceT::Request::SharedPtr, typename SharedResponse = typename ServiceT::Response::SharedPtr>
+-        int _call_request(std::shared_ptr<ServiceT> client, SharedRequest req, SharedResponse& res);
+-
++        hardware_interface::return_type _fault(const char *operation, int code);
++        bool _accept_feedback(const sensor_msgs::msg::JointState &sample);
+     };
+ }
+ 
+ #include "pluginlib/class_list_macros.hpp"
+-
+ PLUGINLIB_EXPORT_CLASS(uf_robot_hardware::UFRobotSystemHardware, hardware_interface::SystemInterface)
+-
+-#endif // __UF_ROBOT_SYSTEM_HARDWARE_INTERFACE_H__
+\ No newline at end of file
++#endif  // __UF_ROBOT_SYSTEM_HARDWARE_INTERFACE_H__
+diff --git a/xarm_controller/package.xml b/xarm_controller/package.xml
+index 9cd0bf3..f23348e 100644
+--- a/xarm_controller/package.xml
++++ b/xarm_controller/package.xml
+@@ -31,6 +31,7 @@
+   <exec_depend>launch</exec_depend>
+   <exec_depend>launch_ros</exec_depend>
+ 
++  <test_depend>ament_cmake_gtest</test_depend>
+   <test_depend>ament_lint_auto</test_depend>
+   <test_depend>ament_lint_common</test_depend>
+ 
+diff --git a/xarm_controller/src/hardware/uf_robot_system_hardware.cpp b/xarm_controller/src/hardware/uf_robot_system_hardware.cpp
+index 54e7e8a..c109470 100644
+--- a/xarm_controller/src/hardware/uf_robot_system_hardware.cpp
++++ b/xarm_controller/src/hardware/uf_robot_system_hardware.cpp
+@@ -7,6 +7,8 @@
+  ============================================================================*/
+ 
+ #include "xarm_controller/hardware/uf_robot_system_hardware.h"
++#include <cmath>
++#include <chrono>
+ 
+ #define SERVICE_CALL_FAILED 999
+ #define SERVICE_IS_PERSISTENT_BUT_INVALID 998
+@@ -18,42 +20,13 @@ namespace uf_robot_hardware
+ {
+     static rclcpp::Logger LOGGER = rclcpp::get_logger("UFACTORY.RobotHW");
+ 
+-    template<typename ServiceT, typename SharedRequest, typename SharedResponse>
+-    int UFRobotSystemHardware::_call_request(std::shared_ptr<ServiceT> client, SharedRequest req, SharedResponse& res)
+-    {
+-        bool is_try_again = false;
+-        int failed_cnts = 0;
+-        while (!client->wait_for_service(std::chrono::seconds(1))) {
+-            if (!rclcpp::ok()) {
+-                RCLCPP_ERROR(LOGGER, "[%s] Interrupted while waiting for the service. Exiting.", robot_ip_.c_str());
+-                exit(1);
+-            }
+-            if (!is_try_again) {
+-                is_try_again = true;
+-                RCLCPP_WARN(LOGGER, "[%s] service %s not available, waiting ...", robot_ip_.c_str(), client->get_service_name());
+-            }
+-            failed_cnts += 1;
+-            if (failed_cnts >= 5) return WAIT_SERVICE_TIMEOUT;
+-        }
+-        auto result_future = client->async_send_request(req);
+-        if (rclcpp::spin_until_future_complete(hw_node_, result_future, std::chrono::seconds(1)) != rclcpp::FutureReturnCode::SUCCESS)
+-        {
+-            // RCLCPP_ERROR(LOGGER, "[%s] Failed to call service %s", robot_ip_.c_str(), client->get_service_name());
+-            return SERVICE_CALL_FAILED;
+-        }
+-        res = result_future.get();
+-        return 0;
+-    }
+-
+     void UFRobotSystemHardware::_init_ufactory_driver(void)
+     {
+         rclcpp::NodeOptions node_options;
+         node_options.allow_undeclared_parameters(true);
+         node_options.automatically_declare_parameters_from_overrides(true);
+         node_ = rclcpp::Node::make_shared("ufactory_driver", node_options);
+-        hw_node_ = rclcpp::Node::make_shared("ufactory_robot_hw", node_options);
+ 
+-        update_goal_state_pub_ = hw_node_->create_publisher<std_msgs::msg::Empty>("/rviz/moveit/update_goal_state", 1);
+ 
+         std::thread th([this]() -> void {
+             rclcpp::spin(node_);
+@@ -169,7 +142,9 @@ namespace uf_robot_hardware
+         write_code_ = 0;
+ 
+         initialized_ = false;
+-        reactivate_controller_later_ = false;
++        fault_latched_ = false;
++        have_feedback_ = false;
++        read_ready_ = false;
+ 
+         read_cnts_ = 0;
+         read_max_time_ = 0;
+@@ -178,8 +153,6 @@ namespace uf_robot_hardware
+         memset(cmds_float_, 0, sizeof(cmds_float_));
+         memset(prev_cmds_float_, 0, sizeof(prev_cmds_float_));
+ 
+-        _init_ufactory_driver();
+-        
+         position_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+         velocity_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+         position_cmds_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+@@ -215,6 +188,8 @@ namespace uf_robot_hardware
+             }
+         }
+ 
++        if (info_.joints.empty() || info_.joints.size() > 7) return CallbackReturn::ERROR;
++        _init_ufactory_driver();
+         RCLCPP_INFO(LOGGER, "[%s] System Sucessfully configured!", robot_ip_.c_str());
+         return CallbackReturn::SUCCESS;
+     }
+@@ -245,199 +220,133 @@ namespace uf_robot_hardware
+         return command_interfaces;
+     }
+ 
+-    CallbackReturn UFRobotSystemHardware::on_activate(const rclcpp_lifecycle::State& previous_state)
++    CallbackReturn UFRobotSystemHardware::on_activate(const rclcpp_lifecycle::State &)
+     {
+-        xarm_driver_.arm->clean_error();
+-        xarm_driver_.arm->clean_warn();
+-        xarm_driver_.arm->motion_enable(true);
+-		xarm_driver_.arm->set_mode(velocity_control_ ? XARM_MODE::VELO_JOINT : XARM_MODE::SERVO);
+-		xarm_driver_.arm->set_state(XARM_STATE::START);
+-
+-        req_list_controller_ = std::make_shared<controller_manager_msgs::srv::ListControllers::Request>();
+-        res_list_controller_ = std::make_shared<controller_manager_msgs::srv::ListControllers::Response>();
+-        req_switch_controller_ = std::make_shared<controller_manager_msgs::srv::SwitchController::Request>();
+-        res_switch_controller_ = std::make_shared<controller_manager_msgs::srv::SwitchController::Response>();
+-
+-        client_list_controller_ = hw_node_->create_client<controller_manager_msgs::srv::ListControllers>("/controller_manager/list_controllers");
+-        client_switch_controller_ = hw_node_->create_client<controller_manager_msgs::srv::SwitchController>("/controller_manager/switch_controller");
+-
+-        for (uint i = 0; i < position_states_.size(); i++) {
+-            if (std::isnan(position_states_[i])) {
+-                position_states_[i] = 0;
+-                position_cmds_[i] = 0;
+-            } else {
+-                position_cmds_[i] = position_states_[i];
+-            }
++        if (fault_latched_) return CallbackReturn::ERROR;
++        sensor_msgs::msg::JointState sample;
++        read_code_ = _read_feedback(sample);
++        if (read_code_ != 0 || !_xarm_is_ready_read() || !_accept_feedback(sample)) {
++            _fault("activation feedback", read_code_ != 0 ? read_code_ : UXBUS_STATE::ERR_PARAM);
++            return CallbackReturn::ERROR;
+         }
+-        for (uint i = 0; i < velocity_states_.size(); i++) {
+-            if (std::isnan(velocity_states_[i])) {
+-                velocity_states_[i] = 0;
+-                velocity_cmds_[i] = 0;
+-            } else {
+-                velocity_cmds_[i] = velocity_states_[i];
+-            }
++        // Seed position commands from a successful physical read, never zero placeholders.
++        for (size_t i = 0; i < position_states_.size(); ++i) {
++            position_cmds_[i] = position_states_[i];
++            velocity_cmds_[i] = 0.0;
+         }
+-        
+-        RCLCPP_INFO(LOGGER, "[%s] System Sucessfully started!", robot_ip_.c_str());
++        const int code = _activate_driver();
++        if (code != 0) {
++            _fault("activation", code);
++            return CallbackReturn::ERROR;
++        }
++        RCLCPP_INFO(LOGGER, "[%s] Hardware activated from measured joint positions", robot_ip_.c_str());
+         return CallbackReturn::SUCCESS;
+     }
+ 
+-    CallbackReturn UFRobotSystemHardware::on_deactivate(const rclcpp_lifecycle::State& previous_state)
++    int UFRobotSystemHardware::_activate_driver()
+     {
+-        RCLCPP_INFO(LOGGER, "[%s] Stopping ...please wait...", robot_ip_.c_str());
+-
+-        xarm_driver_.arm->set_mode(XARM_MODE::POSE);
++        // Existing controller faults must be resolved explicitly, not cleared here.
++        int code = xarm_driver_.arm->motion_enable(true);
++        if (code == 0) code = xarm_driver_.arm->set_mode(
++            velocity_control_ ? XARM_MODE::VELO_JOINT : XARM_MODE::SERVO);
++        if (code == 0) code = xarm_driver_.arm->set_state(XARM_STATE::START);
++        if (code != 0) return code;
++        // Reports arrive on another thread. This wait is outside the update loop.
++        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
++        while (!_xarm_is_ready_write()) {
++            if (std::chrono::steady_clock::now() >= deadline) return UXBUS_STATE::STATE_NOT_READY;
++            std::this_thread::sleep_for(std::chrono::milliseconds(10));
++        }
++        return 0;
++    }
+ 
+-        RCLCPP_INFO(LOGGER, "[%s] System sucessfully stopped!", robot_ip_.c_str());
++    CallbackReturn UFRobotSystemHardware::on_deactivate(const rclcpp_lifecycle::State &)
++    {
++        if (xarm_driver_.arm != nullptr) xarm_driver_.arm->set_mode(XARM_MODE::POSE);
+         return CallbackReturn::SUCCESS;
+     }
+ 
+-    hardware_interface::return_type UFRobotSystemHardware::read(const rclcpp::Time & time, const rclcpp::Duration &period)
++    hardware_interface::return_type UFRobotSystemHardware::_fault(const char *operation, int code)
+     {
+-        read_cnts_ += 1;
+-        read_ready_ = _xarm_is_ready_read();
+-        rclcpp::Time start = node_->get_clock()->now();
+-
+-        read_code_ = xarm_driver_.update_joint_states(initialized_);
+-        // double time_sec = joint_state_msg_->header.stamp.seconds() - start.seconds();
+-        // read_total_time_ += time_sec;
+-        // if (time_sec > read_max_time_) {
+-        //     read_max_time_ = time_sec;
+-        // }
+-        // if (read_cnts_ % 6000 == 0) {
+-        //     RCLCPP_INFO(LOGGER, "[%s] [READ] cnt: %ld, max: %f, mean: %f, failed: %ld", robot_ip_.c_str(), read_cnts_, read_max_time_, read_total_time_ / read_cnts_, read_failed_cnts_);
+-        // }
+-        if (read_code_ == 0 && read_ready_) {
+-            for (int j = 0; j < info_.joints.size(); j++) {
+-                position_states_[j] = joint_state_msg_->position[j];
+-                velocity_states_[j] = joint_state_msg_->velocity[j];
+-                // effort_states_[j] = joint_state_msg_->effort[j];
+-            }
+-            if (!initialized_) {
+-                for (uint i = 0; i < position_states_.size(); i++) {
+-                    position_cmds_[i] = position_states_[i];
+-                    velocity_cmds_[i] = 0.0;
+-                }
+-            }
+-        }
+-        else {
+-            // initialized_ = read_ready_ && _xarm_is_ready_write();
+-            if (read_code_) {
+-                read_failed_cnts_ += 1;
+-                RCLCPP_INFO(LOGGER, "[%s] Read() returns: %d", robot_ip_.c_str(), read_code_);
+-                if (read_code_ == ROBOT_IS_DISCONNECTED) {
+-                    RCLCPP_ERROR(LOGGER, "[%s] Robot is disconnected, ros shutdown", robot_ip_.c_str());
+-                    rclcpp::shutdown();
+-                    exit(1);
+-				}
+-            }
++        if (!fault_latched_) {
++            RCLCPP_ERROR(LOGGER, "[%s] %s failed (code %d); command transmission disabled. Restart required.",
++                         robot_ip_.c_str(), operation, code);
+         }
+-
+-        return hardware_interface::return_type::OK;
++        fault_latched_ = true;
++        have_feedback_ = false;
++        initialized_ = false;
++        return hardware_interface::return_type::ERROR;
+     }
+ 
+-    hardware_interface::return_type UFRobotSystemHardware::write(const rclcpp::Time & time, const rclcpp::Duration &period)
++    bool UFRobotSystemHardware::_accept_feedback(const sensor_msgs::msg::JointState &sample)
+     {
+-        if (_need_reset()) {
+-            initialized_ = false;
+-            _deactivate_controller();
+-            return hardware_interface::return_type::OK;
+-        }
+-        initialized_ = true;
+-        if(reactivate_controller_later_)
+-        {
+-            _activate_controller();
+-            reactivate_controller_later_ = false;
+-        }
+-        // std::string pos_str = "[ ";
+-        // std::string vel_str = "[ ";
+-        // for (int i = 0; i < position_cmds_.size(); i++) { 
+-        //     pos_str += std::to_string(position_cmds_[i]); 
+-        //     pos_str += " ";
+-        //     vel_str += std::to_string(velocity_cmds_[i]); 
+-        //     vel_str += " ";
+-        // }
+-        // pos_str += "]";
+-        // vel_str += "]";
+-        // RCLCPP_INFO(LOGGER, "[%s] positon: %s, velocity: %s", robot_ip_.c_str(), pos_str.c_str(), vel_str.c_str());
+-
+-        int cmd_ret = 0;
+-        if (velocity_control_) {
+-            for (int i = 0; i < velocity_cmds_.size(); i++) { 
+-                cmds_float_[i] = (float)velocity_cmds_[i];
+-            }
+-            // RCLCPP_INFO(LOGGER, "[%s] velocity: %s", robot_ip_.c_str(), vel_str.c_str());
+-            cmd_ret = xarm_driver_.arm->vc_set_joint_velocity(cmds_float_, true, VELO_DURATION);
+-            if (cmd_ret != 0) {
+-                RCLCPP_WARN(LOGGER, "[%s] vc_set_joint_velocity, ret=%d", robot_ip_.c_str(), cmd_ret);
+-            }
+-        }
+-        else {
+-            for (int i = 0; i < position_cmds_.size(); i++) { 
+-                cmds_float_[i] = (float)position_cmds_[i];
+-            }
+-            curr_write_time_ = node_->get_clock()->now();
+-            if (curr_write_time_.seconds() - prev_write_time_.seconds() > 1 || _check_cmds_is_change(prev_cmds_float_, cmds_float_)) {
+-                // RCLCPP_INFO(LOGGER, "[%s] positon: %s", robot_ip_.c_str(), pos_str.c_str());
+-                cmd_ret = xarm_driver_.arm->set_servo_angle_j(cmds_float_, 0, 0, 0);
+-                if (cmd_ret != 0) {
+-                    RCLCPP_WARN(LOGGER, "[%s] set_servo_angle_j, ret= %d", robot_ip_.c_str(), cmd_ret);
+-                }
+-                if (cmd_ret == 0) {
+-                    prev_write_time_ = curr_write_time_;
+-                    for (int i = 0; i < 7; i++) { 
+-                        prev_cmds_float_[i] = (float)cmds_float_[i];
+-                    }
+-                }
++        const auto count = info_.joints.size();
++        if (sample.name.size() != count || sample.position.size() != count ||
++            sample.velocity.size() != count) return false;
++        for (size_t i = 0; i < count; ++i) {
++            if (sample.name[i] != info_.joints[i].name || !std::isfinite(sample.position[i]) ||
++                !std::isfinite(sample.velocity[i])) return false;
++        }
++        for (size_t i = 0; i < count; ++i) {
++            position_states_[i] = sample.position[i];
++            velocity_states_[i] = sample.velocity[i];
++            if (!initialized_) {
++                position_cmds_[i] = position_states_[i];
++                velocity_cmds_[i] = 0.0;
+             }
+         }
++        have_feedback_ = true;
++        return true;
++    }
+ 
+-        return hardware_interface::return_type::OK;
++    int UFRobotSystemHardware::_read_feedback(sensor_msgs::msg::JointState &sample)
++    {
++        const int code = xarm_driver_.update_joint_states(initialized_);
++        if (code == 0) sample = *joint_state_msg_;
++        return code;
+     }
+ 
+-    void UFRobotSystemHardware::_deactivate_controller(void) {
+-        if(reactivate_controller_later_)
+-            return;
+-        // RCLCPP_INFO(LOGGER, "DEACTIVATE CONTROLLER!! ");
+-        int ret = _call_request(client_list_controller_, req_list_controller_, res_list_controller_);
+-        bool valid_operation = false;
+-        if (ret == 0 && res_list_controller_->controller.size() > 0) {
+-            req_switch_controller_->activate_controllers.resize(0);
+-            req_switch_controller_->deactivate_controllers.resize(res_list_controller_->controller.size());
+-            for (uint i = 0; i < res_list_controller_->controller.size(); i++) {
+-                // RCLCPP_ERROR(LOGGER, "STATE: %s", res_list_controller_->controller[i].state.c_str());
+-                if(res_list_controller_->controller[i].state == std::string("active")){
+-                // for situation of initial launch with emg stop pressed, launch file will activate controller and it takes a while
+-                    valid_operation = true;
+-                }
+-                // req_switch_controller_->activate_controllers[i] = res_list_controller_->controller[i].name;
+-                req_switch_controller_->deactivate_controllers[i] = res_list_controller_->controller[i].name;
+-            }
+-            req_switch_controller_->strictness = controller_manager_msgs::srv::SwitchController::Request::BEST_EFFORT;
+-            req_switch_controller_->timeout = rclcpp::Duration::from_seconds(2.0);
+-            if(valid_operation)
+-            {
+-                _call_request(client_switch_controller_, req_switch_controller_, res_switch_controller_);
+-                reactivate_controller_later_ = true; // Not setting this indicator until activated controller disabled!
+-            }
++    int UFRobotSystemHardware::_send_joint_command(float *commands)
++    {
++        return velocity_control_ ? xarm_driver_.arm->vc_set_joint_velocity(commands, true, VELO_DURATION)
++            : xarm_driver_.arm->set_servo_angle_j(commands, 0, 0, 0);
++    }
++
++    hardware_interface::return_type UFRobotSystemHardware::read(const rclcpp::Time &, const rclcpp::Duration &)
++    {
++        if (fault_latched_) return hardware_interface::return_type::ERROR;
++        sensor_msgs::msg::JointState sample;
++        read_code_ = _read_feedback(sample);
++        read_ready_ = _xarm_is_ready_read();
++        if (read_code_ != 0 || !read_ready_) {
++            return _fault("joint read", read_code_ != 0 ? read_code_ : UXBUS_STATE::STATE_NOT_READY);
+         }
++        if (!_accept_feedback(sample)) return _fault("invalid joint feedback", UXBUS_STATE::ERR_PARAM);
++        return hardware_interface::return_type::OK;
+     }
+ 
+-    void UFRobotSystemHardware::_activate_controller(void) {
+-        // RCLCPP_INFO(LOGGER, "ACTIVATE CONTROLLER!! ");
+-        int ret = _call_request(client_list_controller_, req_list_controller_, res_list_controller_);
+-        if (ret == 0 && res_list_controller_->controller.size() > 0) {
+-            req_switch_controller_->deactivate_controllers.resize(0);
+-            req_switch_controller_->activate_controllers.resize(res_list_controller_->controller.size());
+-            for (uint i = 0; i < res_list_controller_->controller.size(); i++) {
+-                req_switch_controller_->activate_controllers[i] = res_list_controller_->controller[i].name;
+-                // req_switch_controller_->deactivate_controllers[i] = res_list_controller_->controller[i].name;
+-            }
+-            req_switch_controller_->strictness = controller_manager_msgs::srv::SwitchController::Request::BEST_EFFORT;
+-            req_switch_controller_->timeout = rclcpp::Duration::from_seconds(2.0);
+-            _call_request(client_switch_controller_, req_switch_controller_, res_switch_controller_);
++    hardware_interface::return_type UFRobotSystemHardware::write(const rclcpp::Time &time, const rclcpp::Duration &)
++    {
++        if (fault_latched_) return hardware_interface::return_type::ERROR;
++        if (!have_feedback_ || !_xarm_is_ready_write()) {
++            return _fault("joint write readiness", UXBUS_STATE::STATE_NOT_READY);
+         }
+-        update_goal_state_pub_->publish(update_goal_state_msg_);
++        for (size_t i = 0; i < info_.joints.size(); ++i) {
++            const double value = velocity_control_ ? velocity_cmds_[i] : position_cmds_[i];
++            if (!std::isfinite(value)) return _fault("non-finite joint command", UXBUS_STATE::ERR_PARAM);
++            cmds_float_[i] = static_cast<float>(value);
++            if (!std::isfinite(cmds_float_[i])) return _fault("joint command overflow", UXBUS_STATE::ERR_PARAM);
++        }
++        initialized_ = true;
++        curr_write_time_ = time;
++        if (velocity_control_ || curr_write_time_.seconds() - prev_write_time_.seconds() > 1 ||
++            _check_cmds_is_change(prev_cmds_float_, cmds_float_)) {
++            write_code_ = _send_joint_command(cmds_float_);
++            if (write_code_ != 0) return _fault("joint write", write_code_);
++            prev_write_time_ = curr_write_time_;
++            for (size_t i = 0; i < info_.joints.size(); ++i) prev_cmds_float_[i] = cmds_float_[i];
++        }
++        return hardware_interface::return_type::OK;
+     }
+ 
+     bool UFRobotSystemHardware::_check_cmds_is_change(float *prev, float *cur, double threshold)
+@@ -501,27 +410,4 @@ namespace uf_robot_hardware
+         return true;
+     }
+ 
+-    bool UFRobotSystemHardware::_need_reset()
+-    {
+-        bool is_not_ready = !_xarm_is_ready_write();
+-        bool write_succeed = write_code_ == 0;
+-        if (!write_succeed) {
+-            // int ret = xarm_driver_.arm->set_state(XARM_STATE::STOP);
+-            // RCLCPP_ERROR(LOGGER, "[%s] Write() failed, failed_ret=%d !, Setting Robot State to STOP... (ret: %d)", robot_ip_.c_str(), write_code_, ret);
+-            RCLCPP_ERROR(LOGGER, "[%s] Write() failed, failed_ret=%d !", robot_ip_.c_str(), write_code_);
+-            if (write_code_ == SERVICE_IS_PERSISTENT_BUT_INVALID || write_code_ == SERVICE_CALL_FAILED) {
+-                RCLCPP_ERROR(LOGGER, "[%s] Service is invaild, ros shutdown", robot_ip_.c_str());
+-                rclcpp::shutdown();
+-                exit(1);
+-            }
+-            else if (write_code_ == ROBOT_IS_DISCONNECTED) {
+-                RCLCPP_ERROR(LOGGER, "[%s] Robot is disconnected, ros shutdown", robot_ip_.c_str());
+-                rclcpp::shutdown();
+-                exit(1);
+-            }
+-            write_code_ = 0;
+-        }
+-        return is_not_ready || !write_succeed || read_code_ != 0 || !read_ready_;
+-    }
+ }
+-
+diff --git a/xarm_api/include/xarm_api/joint_feedback.h b/xarm_api/include/xarm_api/joint_feedback.h
+new file mode 100644
+--- /dev/null
++++ b/xarm_api/include/xarm_api/joint_feedback.h
+@@ -0,0 +1,29 @@
++// Copyright 2026 HAND contributors. SPDX-License-Identifier: BSD-3-Clause
++#pragma once
++#include <cmath>
++#include <sensor_msgs/msg/joint_state.hpp>
++#include <rclcpp/time.hpp>
++#include "xarm/core/instruction/uxbus_cmd_config.h"
++
++namespace xarm_api {
++// Commit only a complete validated sample, never failed/partial SDK output.
++inline int commit_joint_feedback(sensor_msgs::msg::JointState &message, int result,
++    const float *positions, const float *velocities, const float *efforts,
++    const rclcpp::Time &stamp)
++{
++    if (result != 0) return result;
++    const auto count = message.name.size();
++    if (count == 0 || count > 7) return UXBUS_STATE::ERR_PARAM;
++    for (size_t i = 0; i < count; ++i) {
++        if (!std::isfinite(positions[i]) || !std::isfinite(velocities[i]) ||
++            !std::isfinite(efforts[i])) return UXBUS_STATE::ERR_PARAM;
++    }
++    auto next = message;
++    next.position.assign(positions, positions + count);
++    next.velocity.assign(velocities, velocities + count);
++    next.effort.assign(efforts, efforts + count);
++    next.header.stamp = stamp;
++    message = std::move(next);
++    return 0;
++}
++}  // namespace xarm_api
+diff --git a/xarm_api/test/test_joint_feedback.cpp b/xarm_api/test/test_joint_feedback.cpp
+new file mode 100644
+--- /dev/null
++++ b/xarm_api/test/test_joint_feedback.cpp
+@@ -0,0 +1,55 @@
++// Copyright 2026 HAND contributors. SPDX-License-Identifier: BSD-3-Clause
++#include <gtest/gtest.h>
++#include <limits>
++#include "xarm_api/joint_feedback.h"
++
++class FeedbackCommit : public ::testing::Test {
++protected:
++    sensor_msgs::msg::JointState message;
++    float position[7] = {0}, velocity[7] = {0}, effort[7] = {0};
++    void SetUp() override {
++        message.name = {"joint1", "joint2", "joint3", "joint4", "joint5", "joint6"};
++        message.position.assign(6, 0.25);
++        message.velocity.assign(6, 0.5);
++        message.effort.assign(6, 0.75);
++        message.header.stamp.sec = 10;
++    }
++    int commit(int code = 0) {
++        return xarm_api::commit_joint_feedback(message, code, position, velocity, effort,
++                                              rclcpp::Time(20, 0));
++    }
++};
++TEST_F(FeedbackCommit, TimeoutDoesNotRefreshTimestampOrOverwriteDataWithZeros) {
++    EXPECT_EQ(commit(3), 3);
++    EXPECT_EQ(message.header.stamp.sec, 10);
++    EXPECT_DOUBLE_EQ(message.position[0], 0.25);
++    EXPECT_DOUBLE_EQ(message.velocity[0], 0.5);
++    EXPECT_DOUBLE_EQ(message.effort[0], 0.75);
++}
++TEST_F(FeedbackCommit, ValidZeroSampleIsCommitted) {
++    EXPECT_EQ(commit(), 0);
++    EXPECT_EQ(message.header.stamp.sec, 20);
++    EXPECT_DOUBLE_EQ(message.position[0], 0.0);
++}
++TEST_F(FeedbackCommit, InvalidLastPositionRejectsWholeSample) {
++    position[0] = 1.0;
++    position[5] = std::numeric_limits<float>::quiet_NaN();
++    EXPECT_EQ(commit(), int(UXBUS_STATE::ERR_PARAM));
++    EXPECT_DOUBLE_EQ(message.position[0], 0.25);
++    EXPECT_EQ(message.header.stamp.sec, 10);
++}
++TEST_F(FeedbackCommit, InvalidVelocityIsNotPublishedAsValidFeedback) {
++    velocity[5] = std::numeric_limits<float>::infinity();
++    EXPECT_EQ(commit(), int(UXBUS_STATE::ERR_PARAM));
++    EXPECT_EQ(message.header.stamp.sec, 10);
++}
++TEST_F(FeedbackCommit, InvalidEffortIsNotPublishedAsValidFeedback) {
++    effort[5] = std::numeric_limits<float>::quiet_NaN();
++    EXPECT_EQ(commit(), int(UXBUS_STATE::ERR_PARAM));
++    EXPECT_EQ(message.header.stamp.sec, 10);
++}
++TEST_F(FeedbackCommit, BadJointCountCannotOverrunSdkBuffers) {
++    message.name.resize(8);
++    EXPECT_EQ(commit(), int(UXBUS_STATE::ERR_PARAM));
++    EXPECT_EQ(message.header.stamp.sec, 10);
++}
+diff --git a/xarm_controller/test/test_hardware_faults.cpp b/xarm_controller/test/test_hardware_faults.cpp
+new file mode 100644
+--- /dev/null
++++ b/xarm_controller/test/test_hardware_faults.cpp
+@@ -0,0 +1,195 @@
++// Copyright 2026 HAND contributors. SPDX-License-Identifier: BSD-3-Clause
++#include <gtest/gtest.h>
++#include <limits>
++#include "xarm_controller/hardware/uf_robot_system_hardware.h"
++
++using hardware_interface::return_type;
++using uf_robot_hardware::CallbackReturn;
++
++class OfflineHardware : public uf_robot_hardware::UFRobotSystemHardware {
++public:
++    int reads = 0, writes = 0, initializations = 0;
++    int read_result = 0, write_result = 0, activation_result = 0, activations = 0;
++    bool ready = true;
++    sensor_msgs::msg::JointState next;
++    std::vector<float> sent;
++
++    hardware_interface::HardwareInfo description() {
++        hardware_interface::HardwareInfo info;
++        info.name = "offline_lite6";
++        info.type = "system";
++        for (int i = 1; i <= 6; ++i) {
++            hardware_interface::ComponentInfo joint;
++            joint.name = "joint" + std::to_string(i);
++            hardware_interface::InterfaceInfo position, velocity;
++            position.name = "position";
++            velocity.name = "velocity";
++            joint.command_interfaces = {position, velocity};
++            joint.state_interfaces = {position, velocity};
++            info.joints.push_back(joint);
++        }
++        return info;
++    }
++    void setup() {
++        auto info = description();
++        ASSERT_EQ(on_init(info), CallbackReturn::SUCCESS);
++        for (auto &joint : info.joints) next.name.push_back(joint.name);
++        next.position = {0.1, -0.2, 0.3, -0.4, 0.5, -0.6};
++        next.velocity.assign(6, 0.0);
++    }
++protected:
++    void _init_ufactory_driver() override { ++initializations; }
++    int _activate_driver() override { ++activations; return activation_result; }
++    bool _xarm_is_ready_read() override { return ready; }
++    bool _xarm_is_ready_write() override { return ready; }
++    int _read_feedback(sensor_msgs::msg::JointState &sample) override {
++        ++reads;
++        sample = next;  // Includes the real SDK failure pattern: buffers may be zero.
++        return read_result;
++    }
++    int _send_joint_command(float *commands) override {
++        ++writes;
++        sent.assign(commands, commands + 6);
++        return write_result;
++    }
++};
++
++static const rclcpp::Time now(10, 0);
++static const rclcpp::Duration period = rclcpp::Duration::from_seconds(1.0/150);
++
++TEST(HardwareFaults, SuccessfulReadSeedsHoldFromMeasuredPosition) {
++    OfflineHardware hardware;
++    hardware.setup();
++    ASSERT_EQ(hardware.read(now, period), return_type::OK);
++    ASSERT_EQ(hardware.write(now, period), return_type::OK);
++    ASSERT_EQ(hardware.writes, 1);
++    for (size_t i = 0; i < 6; ++i) EXPECT_FLOAT_EQ(hardware.sent[i], hardware.next.position[i]);
++}
++
++TEST(HardwareFaults, FailedReadPreservesStateAndPermanentlyBlocksWrites) {
++    OfflineHardware hardware;
++    hardware.setup();
++    ASSERT_EQ(hardware.read(now, period), return_type::OK);
++    const auto before = hardware.next.position;
++    hardware.next.position.assign(6, 0.0);
++    hardware.read_result = 3;
++    EXPECT_EQ(hardware.read(now, period), return_type::ERROR);
++    auto states = hardware.export_state_interfaces();
++    for (size_t i = 0; i < 6; ++i) EXPECT_DOUBLE_EQ(states[2*i].get_value(), before[i]);
++    const auto reads = hardware.reads;
++    hardware.read_result = 0;
++    EXPECT_EQ(hardware.read(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.reads, reads);  // No SDK retry/recovery loop.
++    EXPECT_EQ(hardware.write(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.writes, 0);
++    EXPECT_EQ(hardware.on_activate(rclcpp_lifecycle::State()), CallbackReturn::ERROR);
++}
++
++TEST(HardwareFaults, FailedWriteIsReturnedAndCannotBeRetried) {
++    OfflineHardware hardware;
++    hardware.setup();
++    ASSERT_EQ(hardware.read(now, period), return_type::OK);
++    hardware.write_result = 3;
++    EXPECT_EQ(hardware.write(now, period), return_type::ERROR);
++    hardware.write_result = 0;
++    EXPECT_EQ(hardware.write(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.writes, 1);
++}
++
++TEST(HardwareFaults, InvalidFeedbackIsRejectedBeforeAnyStateChanges) {
++    OfflineHardware hardware;
++    hardware.setup();
++    ASSERT_EQ(hardware.read(now, period), return_type::OK);
++    hardware.next.position[0] = 1.23;
++    hardware.next.position[5] = std::numeric_limits<double>::quiet_NaN();
++    EXPECT_EQ(hardware.read(now, period), return_type::ERROR);
++    EXPECT_DOUBLE_EQ(hardware.export_state_interfaces()[0].get_value(), 0.1);
++    EXPECT_EQ(hardware.write(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.writes, 0);
++}
++
++TEST(HardwareFaults, JointNameMismatchCannotSilentlyReorderCommands) {
++    OfflineHardware hardware;
++    hardware.setup();
++    hardware.next.name[0] = "joint2";
++    EXPECT_EQ(hardware.read(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.write(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.writes, 0);
++}
++
++TEST(HardwareFaults, InvalidCommandNeverReachesTransport) {
++    OfflineHardware hardware;
++    hardware.setup();
++    ASSERT_EQ(hardware.read(now, period), return_type::OK);
++    auto commands = hardware.export_command_interfaces();
++    commands[0].set_value(std::numeric_limits<double>::quiet_NaN());
++    EXPECT_EQ(hardware.write(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.writes, 0);
++}
++
++TEST(HardwareFaults, WriteBeforePhysicalFeedbackIsRejected) {
++    OfflineHardware hardware;
++    hardware.setup();
++    EXPECT_EQ(hardware.write(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.writes, 0);
++}
++
++TEST(HardwareFaults, ActualZeroAnglesAreValidData) {
++    OfflineHardware hardware;
++    hardware.setup();
++    hardware.next.position.assign(6, 0.0);
++    EXPECT_EQ(hardware.read(now, period), return_type::OK);
++    EXPECT_EQ(hardware.write(now, period), return_type::OK);
++}
++
++TEST(HardwareFaults, InvalidDescriptionRejectedBeforeTransportInitialization) {
++    OfflineHardware hardware;
++    auto info = hardware.description();
++    info.joints.clear();
++    EXPECT_EQ(hardware.on_init(info), CallbackReturn::ERROR);
++    EXPECT_EQ(hardware.initializations, 0);
++}
++
++TEST(HardwareFaults, ActivationCannotEnableMotorsWhenReadFails) {
++    OfflineHardware hardware;
++    hardware.setup();
++    hardware.read_result = 3;
++    EXPECT_EQ(hardware.on_activate(rclcpp_lifecycle::State()), CallbackReturn::ERROR);
++    EXPECT_EQ(hardware.activations, 0);
++    EXPECT_EQ(hardware.writes, 0);
++}
++
++TEST(HardwareFaults, ActivationUsesActualPositionsAndZeroVelocity) {
++    OfflineHardware hardware;
++    hardware.setup();
++    hardware.next.position = {3.56, -0.19, 0.38, 0.37, 0.58, -2.72};
++    hardware.next.velocity.assign(6, 0.01);
++    EXPECT_EQ(hardware.on_activate(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
++    EXPECT_EQ(hardware.activations, 1);
++    auto commands = hardware.export_command_interfaces();
++    for (size_t i = 0; i < 6; ++i) {
++        EXPECT_DOUBLE_EQ(commands[2*i].get_value(), hardware.next.position[i]);
++        EXPECT_DOUBLE_EQ(commands[2*i+1].get_value(), 0.0);
++    }
++}
++
++TEST(HardwareFaults, ActivationFailureBlocksAllLaterCommands) {
++    OfflineHardware hardware;
++    hardware.setup();
++    hardware.activation_result = 3;
++    EXPECT_EQ(hardware.on_activate(rclcpp_lifecycle::State()), CallbackReturn::ERROR);
++    EXPECT_EQ(hardware.write(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.writes, 0);
++    EXPECT_EQ(hardware.on_activate(rclcpp_lifecycle::State()), CallbackReturn::ERROR);
++    EXPECT_EQ(hardware.activations, 1);
++}
++
++TEST(HardwareFaults, FiniteDoubleOverflowCannotReachFloatTransport) {
++    OfflineHardware hardware;
++    hardware.setup();
++    ASSERT_EQ(hardware.read(now, period), return_type::OK);
++    auto commands = hardware.export_command_interfaces();
++    commands[0].set_value(1e300);
++    EXPECT_EQ(hardware.write(now, period), return_type::ERROR);
++    EXPECT_EQ(hardware.writes, 0);
++}

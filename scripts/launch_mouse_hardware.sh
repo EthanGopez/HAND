@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Connect to a PHYSICAL xArm 6, discovering its address when omitted.
+# Connect to a PHYSICAL Lite6 using an explicit controller address.
 set -eo pipefail
 readonly PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  echo "Usage: bash scripts/launch_mouse_hardware.sh [ROBOT_IP] [max_speed:=0.05 mouse_gain:=0.0001]"
-  echo "With no IP, discover a single xArm 6 on the local wired LAN. Connecting enables motors."
+  echo "Usage: bash scripts/launch_mouse_hardware.sh ROBOT_IP [max_speed:=0.05 mouse_gain:=0.0001]"
+  echo "An explicit Lite6 controller IP is required. Connecting enables motors."
   exit 0
 fi
-ROBOT_ADDRESS=auto
-if [[ $# -gt 0 && "$1" != *:=* && "$1" != -* ]]; then
-  ROBOT_ADDRESS="$1"
-  shift
+if [[ $# -lt 1 || "$1" == *:=* || "$1" == -* || "$1" == auto ]]; then
+  echo 'Usage: bash scripts/launch_mouse_hardware.sh ROBOT_IP [max_speed:=0.05 mouse_gain:=0.0001]' >&2
+  echo 'An explicit Lite6 controller IP is required; xArm 6 discovery does not match this model.' >&2
+  exit 2
 fi
-readonly ROBOT_ADDRESS
+readonly ROBOT_ADDRESS="$1"
+shift
 for argument in "$@"; do
   case "$argument" in
     max_speed:=*|mouse_gain:=*|show_rviz:=*) ;;
