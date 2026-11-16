@@ -16,8 +16,11 @@ flowchart TD
     Mouse[Mouse events in Tkinter] --> MI[MouseInput: drag velocity and limits]
     MI --> MT[mouse_teleop node]
     Vision[hand_vision node] -->|/hand/landmarks| Hand[hand_teleop node]
+    Demo[hand_tracking_demo.py] -->|palm_center.csv| CsvVision[palm_csv_node]
+    CsvVision -->|/hand/palm_center| PalmT[palm_teleop node]
     MT -->|TwistStamped| Servo[servo_server: MoveIt Servo]
     Hand -->|TwistStamped| Servo
+    PalmT -->|TwistStamped| Servo
     Servo -->|JointTrajectory| Controller[xarm6_traj_controller]
     Controller --> Backend[Gazebo physics OR fake hardware]
     Backend --> Broadcaster[joint_state_broadcaster]
@@ -26,8 +29,8 @@ flowchart TD
     RSP -->|/tf and /tf_static| RViz[RViz robot view]
 ```
 
-Mouse and hand input are alternatives. Run one selected input source and one
-simulation backend at a time; they share the same command topics and controller
+Mouse, hand, and CSV input are alternatives. Run one selected input source and
+one simulation backend at a time; they share the same command topics and controller
 names. The fake vendor launch also includes joystick input components, although
 the mouse demo does not use a joystick.
 
@@ -37,8 +40,15 @@ the mouse demo does not use a joystick.
 | --- | --- |
 | [mouse_teleop_node.py](hand_teleop/mouse_teleop_node.py) | Mouse mapping, Tkinter window, velocity publication, and input stopping |
 | [teleop_node.py](hand_teleop/teleop_node.py) | Hand wrist-offset mapping and tracking freshness checks |
+| [palm_input.py](hand_teleop/palm_input.py) | Palm-displacement to velocity mapping, jump and gap rejection, speed cap |
+| [palm_teleop_node.py](hand_teleop/palm_teleop_node.py) | Palm velocity publication, sample freshness, and guard wiring |
+| [servo_guard.py](hand_teleop/servo_guard.py) | Robot model, joint feedback, and singularity checks, shared between input nodes |
+| [palm_csv_reader.py](../hand_vision/hand_vision/palm_csv_reader.py) | Palm CSV following, truncation handling, and row validation |
+| [palm_csv_node.py](../hand_vision/hand_vision/palm_csv_node.py) | Palm CSV row publication and recorded-timing replay |
 | [setup.py](setup.py) | Registers the `mouse_teleop_node` and `teleop_node` executables |
 | [test_mouse_input.py](test/test_mouse_input.py) | Deterministic tests of mouse mapping and input state |
+| [test_palm_input.py](test/test_palm_input.py) | Deterministic tests of palm mapping and rejection rules |
+| [test_palm_csv_reader.py](../hand_vision/test/test_palm_csv_reader.py) | Deterministic tests of CSV following and row validation |
 | [sim.launch.py](../hand_bringup/launch/sim.launch.py) | Fake-hardware stack and hand/mouse input selection |
 | [gazebo.launch.py](../hand_bringup/launch/gazebo.launch.py) | Gazebo Classic stack, Servo configuration, and optional viewers |
 | [prepare_sim.py](../hand_bringup/hand_bringup/prepare_sim.py) | Completes a ready-pose trajectory before enabling input |
@@ -59,6 +69,7 @@ Names below assume the current unprefixed, non-namespaced xArm 6 launch.
 | Topic or endpoint | Type | Producer → consumer |
 | --- | --- | --- |
 | `/hand/landmarks` | `hand_interfaces/msg/HandLandmarks` | `hand_vision` → `hand_teleop` |
+| `/hand/palm_center` | `hand_interfaces/msg/PalmCenter` | `palm_csv_node` → `palm_teleop` |
 | `/servo_server/delta_twist_cmds` | `geometry_msgs/msg/TwistStamped` | Selected input → Servo |
 | `/xarm6_traj_controller/joint_trajectory` | `trajectory_msgs/msg/JointTrajectory` | Servo → trajectory controller |
 | `/joint_states` | `sensor_msgs/msg/JointState` | Joint state broadcaster → Servo and robot state publisher |
@@ -158,8 +169,97 @@ zero commands. Its per-axis cap differs from the mouse's total-vector cap.
 
 The fake-hardware launch starts `hand_vision` only in hand mode. The current
 vision node defaults to synthetic landmarks at 30 Hz; its real-camera class is
-still a `NotImplementedError` placeholder. The dedicated Gazebo launch currently
-starts mouse input only.
+still a `NotImplementedError` placeholder. The Gazebo launch selects `mouse`
+(default) or `csv`; it does not offer the synthetic `hand` mode.
+
+## 5b. CSV palm input path
+
+This path exists because `vision_demos/hand_tracking_demo.py` is not a ROS node.
+It is a standalone MediaPipe program whose only machine-readable output is
+`palm_center.csv`, written one row per tracked frame and flushed immediately.
+The file is therefore the interface, and it is split across two nodes for the
+same reason the mouse path splits `MouseInput` from `MouseTeleop`: reading an
+input and deciding how fast an arm may move are separate concerns with
+separate failure modes.
+
+```mermaid
+flowchart LR
+    Demo[hand_tracking_demo.py] -->|appends rows| CSV[(palm_center.csv)]
+    CSV -->|PalmCsvReader: follow + validate| V[palm_csv_node]
+    V -->|/hand/palm_center at ~25 Hz| T[palm_teleop node]
+    T -->|PalmInput: displacement / dt| G[ServoGuard: model, feedback, singularity]
+    G -->|TwistStamped at 20 Hz| S[servo_server]
+```
+
+### What each half owns
+
+`palm_csv_node` owns the file. It follows appends, keeps a half-written row
+until its newline arrives, notices that the demo restarted and truncated the
+file, and drops rows it cannot trust: wrong field count, non-finite or
+unparsable numbers, repeated or backwards timestamps, implausible offsets, and
+non-positive depth. On its first attach it reads existing rows only to validate
+the header and then discards them, so attaching to a demo that has been running
+for ten minutes cannot replay ten minutes of hand motion into the arm.
+
+`palm_teleop_node` owns the arm. It converts positions to velocity, applies the
+same guards as the mouse pad, and publishes at a fixed 20 Hz whether or not a
+sample arrived.
+
+### Clocks
+
+Three clocks are involved and they are not interchangeable.
+
+| Clock | Source | Used for |
+| --- | --- | --- |
+| `source_timestamp_ms` | `time.monotonic_ns()` on the capture machine | Measuring hand motion: `displacement / dt` |
+| `header.stamp` | ROS time at publication | Nothing yet; available to consumers |
+| `time.monotonic()` in the teleop node | The teleop process | Sample freshness and process-stall detection |
+
+Hand speed is measured with the tracker's clock because the camera, not the
+reader, observed the motion. A polling reader that measured `dt` itself would
+report a velocity that varied with its own scheduling jitter.
+
+### Rate control, not position control
+
+`PalmInput` maps *change* in palm position to tool velocity, exactly as
+`MouseInput` maps pixel displacement. An absolute mapping — hand position to
+tool position — was not used: it would command motion the moment tracking began,
+proportional to wherever the hand happened to be in frame, and would need a
+position controller this stack does not have. Servo's input is a velocity.
+
+Displacement is consumed once per tick, so a stationary hand produces zero on
+the next tick even while it is still fully visible.
+
+### Rejections measured against the recorded CSV
+
+The sample `palm_center.csv` in this repository (2012 accepted rows, about
+25.6 Hz) was used to set the defaults:
+
+| Observation | Consequence |
+| --- | --- |
+| Median consecutive step 2.6 mm; 99th percentile 209 mm; maximum 1.53 m (measured on an earlier, metres-based recording) | `max_jump` of 6 cm rejects about 3% of pairs as glitches rather than lunges |
+| Longest gap between rows 23.7 s | `max_gap` of 0.5 s re-references instead of commanding the difference |
+| Depth ranges 1.8 to 49.2 with single-frame steps up to 35 | Depth has its own threshold, and a depth spike discards only the depth component |
+| One row shares a timestamp with its predecessor | Duplicate timestamps are dropped; the CSV has no hand index to separate two hands |
+
+The large image-plane jumps are not hand movements. The demo converts pixels to
+centimetres using the measured palm width as a ruler (`PALM_WIDTH_CM / palm width in
+pixels`), so a single badly fitted frame rescales the position. This is the
+weakest link in the chain: the metric scale of `center_x` and `center_y` is only
+as good as that frame's palm fit, and `center_z` is `DEPTH_CONSTANT / palm
+width`, the distance from the camera in centimetres, and it is much noisier than
+the image-plane position. `scale_x` therefore defaults to 0; `0.01` tracks the
+hand one-for-one.
+
+### Verification status
+
+Both ROS-free classes are tested offline. The full chain has been run against
+the recorded CSV with a synthetic robot description and joint feedback:
+`palm_csv_node` published 204 samples, `palm_teleop_node` published 241 twists
+at 20 Hz of which 67 were non-zero, the 0.05 m/s cap held exactly, and the
+recorded tracking gaps produced zero velocity. That exercise included no MoveIt
+Servo, no controller, and no arm. Simulated and physical arm motion from this
+input path are unvalidated.
 
 ## 6. Servo, inverse kinematics, and execution
 

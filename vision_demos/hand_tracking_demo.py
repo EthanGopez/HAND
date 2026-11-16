@@ -29,11 +29,14 @@ DEFAULT_OUTPUT = Path("hand_landmarks.csv")
 DEFAULT_PALM_OUTPUT = Path("palm_center.csv")
 
 # Camera is fixed, so these are hard coded.
-# DEPTH_CONSTANT: depth_estimate = DEPTH_CONSTANT / palm_width_px (same units as before)
-# PALM_WIDTH_M: real index-to-pinky knuckle width, used as the scale reference for
-# x/y so no focal length is needed. Set to 1.0 to get x/y in "palm widths".
+# All three palm coordinates (center_x, center_y, center_z) are in CENTIMETRES.
+# DEPTH_CONSTANT: depth_estimate = DEPTH_CONSTANT / palm_width_px, the hand's
+#   distance from the camera in cm. It equals focal_length_px * PALM_WIDTH_CM,
+#   so 4613 / 8.5 implies a focal length of about 543 px.
+# PALM_WIDTH_CM: real index-to-pinky knuckle width, used as the scale reference
+#   for x/y so no focal length is needed. Set to 1.0 to get x/y in "palm widths".
 DEPTH_CONSTANT = 4613.0
-PALM_WIDTH_M = 0.085
+PALM_WIDTH_CM = 8.5
 
 # one hand only (num_hands=1), so the CSVs have no hand_index column
 PALM_CSV_FIELDS = ("timestamp_ms", "center_x", "center_y", "center_z")
@@ -407,16 +410,16 @@ def track_palms(result: Any, width: int, height: int) -> dict[int, dict[str, flo
         # larger palm width -> hand is closer to the camera
         depth_estimate = DEPTH_CONSTANT / max(palm_width, 1)
 
-        # palm width is the ruler: meters per pixel = PALM_WIDTH_M / palm_width.
+        # palm width is the ruler: cm per pixel = PALM_WIDTH_CM / palm_width.
         # (equal to the pinhole X = (u - cx) * Z / f with the focal length cancelled)
-        meters_per_pixel = PALM_WIDTH_M / max(palm_width, 1)
+        cm_per_pixel = PALM_WIDTH_CM / max(palm_width, 1)
         palms[hand_index] = {
             "pixel_x": center_x,
             "pixel_y": center_y,
             "palm_width": palm_width,
             "depth_estimate": depth_estimate,
-            "center_x": (center_x - width / 2) * meters_per_pixel,
-            "center_y": (center_y - height / 2) * meters_per_pixel,
+            "center_x": (center_x - width / 2) * cm_per_pixel,
+            "center_y": (center_y - height / 2) * cm_per_pixel,
             "center_z": depth_estimate,
         }
     return palms
@@ -466,7 +469,7 @@ def draw_result(
         )
         cv2.putText(
             frame,
-            f"Depth: {depth_estimate:.1f}",
+            f"Depth: {depth_estimate:.1f} cm",
             (center_x + 20, center_y),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
