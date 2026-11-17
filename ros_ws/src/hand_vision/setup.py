@@ -24,7 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'vision_node = hand_vision.vision_node:main'
+            'vision_node = hand_vision.vision_node:main',
+            'palm_csv_node = hand_vision.palm_csv_node:main',
         ],
     },
 )

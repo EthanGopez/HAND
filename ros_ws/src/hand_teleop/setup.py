@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'teleop_node = hand_teleop.teleop_node:main',
             'mouse_teleop_node = hand_teleop.mouse_teleop_node:main',
+            'palm_teleop_node = hand_teleop.palm_teleop_node:main',
         ],
     },
 )

@@ -151,7 +151,149 @@ The hardware configuration and startup checks are tested offline. Physical-arm
 motion, stopping distance, and communication-loss behavior have not been
 validated on a connected robot.
 
-## Controls
+## CSV hand control
+
+`palm_teleop_node` drives the arm from the hand positions that
+[`vision_demos/hand_tracking_demo.py`](../../../vision_demos/hand_tracking_demo.py)
+records, by way of `hand_vision`'s `palm_csv_node`. The two nodes split the work
+the same way the live hand mode does: one reads positions, one turns them into
+velocities. No camera is opened by either of them.
+
+```bash
+# terminal 1 — the tracking demo, writing palm_center.csv
+cd /workspace && python3 vision_demos/hand_tracking_demo.py
+
+# terminal 2 — the simulated arm plus both CSV nodes
+bash scripts/launch_csv_xarm.sh
+```
+
+Open <http://localhost:6080/vnc.html> to watch the arm in RViz. There is no
+control window: the hand in front of the camera is the input.
+
+To check the pipeline with no camera at all, replay the recorded CSV instead:
+
+```bash
+bash scripts/launch_csv_xarm.sh csv_replay:=true
+```
+
+Replay honours the recorded frame timing, including the long gaps where the
+hand left the frame, so the arm correctly does nothing during them.
+
+For Gazebo physics instead of fake hardware:
+
+```bash
+bash scripts/launch_mouse_gazebo.sh input_mode:=csv
+```
+
+`input_mode` defaults to `mouse`, so existing Gazebo usage is unchanged. That
+launch's `max_speed` default is 0.25 m/s, five times the fake stack's. Physics
+is the first place commanded and achieved tool velocity can differ, because the
+arm has inertia and the controller tracks a trajectory rather than teleporting
+to it.
+
+### Controls
+
+| Hand motion | Motion relative to `link_base` |
+| --- | --- |
+| Move right / left | Negative / positive Y velocity |
+| Move up / down | Positive / negative Z velocity |
+| Move toward / away from the camera | Positive / negative X velocity, **disabled by default** |
+| Hold the hand still | Zero velocity on the next update |
+| Leave the frame, or stop the demo | Zero velocity after `stale_after` (0.2 s) |
+
+**Hand speed sets arm speed, and hand position commands nothing.** This is the
+same relative mapping the mouse pad uses, for the same reason: an absolute
+mapping would move the arm the instant tracking started, by however far the
+hand happened to be from the centre of the frame. Here, displacement between
+samples is divided by the time between them, so a hand that stops moving stops
+the arm even while it is still plainly visible.
+
+Every CSV coordinate is in centimetres, and each scale is metres of tool
+travel per centimetre of hand motion. Y and Z default to **0.01**, meaning the
+tool is asked to travel as far as the hand did. X is scaled from the demo's depth estimate, the hand's distance
+from the camera in centimetres, which is far noisier than the image-plane
+position. So `scale_x` defaults to **0.0** and the arm does not move in X.
+`0.01` tracks the hand one-for-one; start lower and raise it deliberately.
+
+### Parameters
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `max_speed` | `0.05` | Hard cap on total tool speed in m/s, diagonals included |
+| `scale_y` | `0.01` | Metres of tool travel per cm of hand motion across the frame; 0.01 is 1:1 |
+| `scale_z` | `0.01` | Metres of tool travel per cm of hand motion up the frame; 0.01 is 1:1 |
+| `scale_x` | `0.0` | Metres of tool travel per cm of hand distance from the camera; 0 disables depth, 0.01 is 1:1 |
+| `max_jump` | `6.0` | A larger single-sample image-plane step, in cm, is treated as a glitch |
+| `max_depth_jump` | `1.0` | A larger single-sample depth step, in cm, is discarded on its own |
+| `max_gap` | `0.5` | A longer gap between samples re-establishes the reference instead of commanding the difference |
+| `deadband` | `0.0` | Displacement below this is treated as jitter |
+| `stale_after` | `0.2` | Seconds without a sample before the arm is commanded to stop |
+
+### Inputs this node refuses
+
+`PalmInput` applies the mouse pad's rules, and two more that the recorded data
+made necessary. In the sample CSV in this repository, about 3% of consecutive
+sample pairs differ by more than 6 cm in a single frame, with the largest
+single-frame step exceeding 1.5 m. These are not hand movements: the demo
+derives metres from the measured palm width, so one badly fitted frame rescales
+the whole position. Such a step is rejected and its position becomes the new
+reference, rather than becoming a lunge.
+
+Depth is checked separately and more loosely, because it is noisy enough to
+spike by tens of units between frames. A depth spike discards only the depth
+component of that sample; it does not cancel sideways motion the camera saw
+perfectly well.
+
+A gap longer than `max_gap` is not a drag. The recorded CSV contains gaps of
+over twenty seconds, after which the hand reappears elsewhere in the frame;
+the difference across such a gap is discarded.
+
+Every velocity then passes through the same pose-aware singularity filter the
+mouse pad uses, described under *How the implementation works* below, and the
+same joint-feedback freshness check. Without a robot model or with stale joint
+feedback, this node publishes zero and logs the reason, exactly as the mouse
+node does.
+
+### CSV control of the physical Lite6
+
+[`hardware_csv.launch.py`](../hand_bringup/launch/hardware_csv.launch.py) is the
+hardware equivalent, and carries every warning in the mouse hardware section
+above, plus one of its own: **this input has no deadman.** The mouse pad stops
+the arm when the button is released, the pointer leaves the pad, or the window
+closes. Here the arm stops only because samples stop arriving, which depends on
+a separate tracking process continuing to write a file.
+
+```bash
+bash scripts/launch_csv_hardware.sh 192.168.1.166
+```
+
+Defaults are **0.03 m/s** total tool speed (lower than the mouse launch's 0.05
+for the reason above), `scale_x` 0.0 so depth does not move the arm, and
+`feedback_topic` `/xarm/joint_states` so the guard uses the driver's
+successful-read topic. Optional arguments are `max_speed`, `csv_path`,
+`scale_y`, `scale_z`, `scale_x`, and `show_rviz`.
+
+Start the tracking demo yourself, in its own terminal. With no hand in frame the
+demo writes no rows and the arm stands still.
+
+**This launch has never been run against a robot.** What is checked offline: it
+builds its arguments, and `robot_ip` validation rejects `auto`, loopback,
+unspecified, and malformed addresses before any action that could contact a
+controller. Physical motion, stopping distance, and communication-loss behaviour
+are unvalidated for this input, exactly as they are for the mouse input.
+See [diagnostics/csv_teleop/README.md](../../../diagnostics/csv_teleop/README.md)
+for the staged test plan to work through first.
+
+### What this pipeline has and has not been shown to do
+
+The two nodes, the message, the CSV following, and the velocity mapping are
+tested offline. The full chain has been run on the fake-hardware stack with the
+recorded CSV: Servo reported status `0` throughout, the trajectory controller
+received commands at about 15 Hz, and the arm's largest joint excursion was
+0.112 rad, so simulated motion works end to end. Physical arm motion, and the
+whole path from a live camera, remain unvalidated.
+
+## Mouse controls
 
 | Input | Motion relative to `link_base` |
 | --- | --- |

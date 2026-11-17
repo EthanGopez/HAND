@@ -8,6 +8,7 @@ find_package(geometry_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/HandLandmarks.msg"
+  "msg/PalmCenter.msg"
   "msg/GripperCommand.msg"
   "msg/GripperStatus.msg"
   "msg/ContactState.msg"
