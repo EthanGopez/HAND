@@ -145,13 +145,38 @@ class SingularityFilter:
     or a guarantee about a physical robot's response.
     """
 
-    def __init__(self, model, warning=17.0, halt=25.0, horizon=0.3, step=0.05):
-        if (not all(map(math.isfinite, (warning, halt, horizon, step)))
+    def __init__(self, model, warning=17.0, halt=25.0, horizon=0.3, step=0.05,
+                 hysteresis=0.5):
+        if (not all(map(math.isfinite, (warning, halt, horizon, step, hysteresis)))
                 or not 1 < warning < halt <= 25 or not 0 < step <= horizon <= 0.5):
             raise ValueError('Invalid singularity filter configuration')
+        if not 0 <= hysteresis < min(warning - 1, halt - warning):
+            raise ValueError('Invalid zone hysteresis')
         self.model, self.warning, self.halt = model, warning, halt
+        self.hysteresis = hysteresis
+        self.zone = 'NORMAL'
         self.steps = math.ceil(horizon/step)
         self.dt = horizon/self.steps
+
+    def reset(self):
+        self.zone = 'NORMAL'
+
+    def classify(self, condition):
+        if condition >= self.halt:
+            self.zone = 'RECOVERY'
+        elif self.zone == 'RECOVERY' and condition >= self.halt - self.hysteresis:
+            pass
+        elif condition >= self.warning:
+            self.zone = 'CAUTION'
+        elif self.zone != 'NORMAL' and condition >= self.warning - self.hysteresis:
+            self.zone = 'CAUTION'
+        else:
+            self.zone = 'NORMAL'
+        return self.zone
+
+    def approach_scale(self, condition):
+        fraction = np.clip((self.halt - condition) / (self.halt - self.warning), 0., 1.)
+        return float(fraction * fraction * (3. - 2. * fraction))
 
     @staticmethod
     def condition(jacobian):
@@ -211,9 +236,8 @@ class SingularityFilter:
                 return blocked(self.model.names[outside[0]] + ' is outside configured joint limits')
             jacobian = self.model.jacobian(angles)
             condition = self.condition(jacobian)
-            zone = ('NORMAL' if condition < self.warning else
-                    'CAUTION' if condition < self.halt else 'RECOVERY')
-            if condition >= self.halt:
+            zone = self.classify(condition)
+            if zone == 'RECOVERY':
                 return blocked('Arm is too close to a singularity; reposition before mouse control')
             if np.linalg.norm(requested) == 0:
                 return MotionDecision((0.,0.,0.), False, 'Ready', condition,
@@ -221,14 +245,26 @@ class SingularityFilter:
             prediction = self.predict(requested, angles)
             if prediction.reason:
                 return blocked(prediction.reason)
-            previous = condition
-            for predicted in prediction.conditions:
-                if predicted >= self.halt:
-                    return blocked('Drag would approach a singularity')
-                if predicted >= self.warning and predicted > previous+1e-5:
-                    return blocked('Drag would move closer to a singularity; reverse direction')
-                previous = predicted
-            return MotionDecision(tuple(float(v) for v in requested), False,
-                                  'Direction allowed', condition, zone, 1.0, predicted)
+            peak = max(prediction.conditions)
+            approaching = peak > condition + 1e-5
+            scale = self.approach_scale(max(condition, peak)) if approaching else 1.0
+            if approaching and scale == 0.0:
+                scale = 0.5 * self.approach_scale(condition)
+            for _ in range(12):
+                if scale < 1e-4:
+                    break
+                candidate = requested * scale
+                prediction = self.predict(candidate, angles)
+                if prediction.reason:
+                    return blocked(prediction.reason)
+                predicted = max(prediction.conditions)
+                if math.isfinite(predicted) and predicted < self.halt:
+                    return MotionDecision(tuple(float(value) for value in candidate),
+                                          False, 'Slowing near singularity' if scale < 1.0
+                                          else 'Direction allowed', condition,
+                                          'CAUTION' if scale < 1.0 else zone,
+                                          scale, predicted)
+                scale *= 0.5
+            return blocked('Motion would approach a singularity; reverse direction')
         except (KeyError, ValueError, TypeError, np.linalg.LinAlgError, FloatingPointError):
             return blocked('Robot pose or motion prediction is unavailable')

@@ -36,21 +36,24 @@ def positions(degrees=POSE):
 def test_only_directions_approaching_singularity_are_blocked(simulated_filter, axis, sign, blocked):
     velocity = [0.,0.,0.]; velocity[axis] = sign*0.01
     decision = simulated_filter.filter(velocity, positions())
-    assert decision.blocked is blocked
+    assert not decision.blocked
     assert decision.condition == pytest.approx(18.2002, abs=0.001)
-    assert decision.velocity == ((0.,0.,0.) if blocked else tuple(velocity))
+    assert (decision.speed_scale < 1.0) is blocked
+    np.testing.assert_allclose(decision.velocity, np.array(velocity) * decision.speed_scale)
 
 
 def test_same_mouse_direction_changes_with_robot_pose(simulated_filter):
-    assert simulated_filter.filter((0.01,0,0), positions()).blocked
+    assert simulated_filter.filter((0.01,0,0), positions()).speed_scale < 1.0
     changed = list(POSE); changed[0] -= 180
     assert not simulated_filter.filter((0.01,0,0), positions(changed)).blocked
 
 
-def test_diagonal_is_rejected_whole_without_steering_in_another_direction(simulated_filter):
+def test_diagonal_is_scaled_whole_without_steering_in_another_direction(simulated_filter):
     decision = simulated_filter.filter((0.01,0.01,0), positions())
-    assert decision.blocked
-    assert decision.velocity == (0.,0.,0.)
+    assert not decision.blocked
+    assert 0 < decision.speed_scale < 1
+    np.testing.assert_allclose(decision.velocity,
+                               np.array((0.01,0.01,0)) * decision.speed_scale)
 
 
 def test_singular_pose_cannot_generate_nan_commands(simulated_filter):
@@ -116,7 +119,7 @@ def test_jacobian_matches_independently_validated_condition(simulated_filter):
 def test_ui_tick_publishes_zero_for_blocked_drag_and_discards_it(simulated_filter):
     node = object.__new__(MouseTeleop)
     node.guard = simulated_filter; node.guard_error = ''
-    node.positions = positions()
+    node.positions = positions([0]*6)
     node.joint_stamp_ns = 10_000_000_000; node.joint_received_wall = 0.0
     node.get_clock = MagicMock()
     node.get_clock.return_value.now.return_value.nanoseconds = 10_000_000_000
@@ -135,6 +138,7 @@ def test_ui_tick_publishes_zero_for_blocked_drag_and_discards_it(simulated_filte
     assert 'singularity' in node.guard_status.set.call_args.args[0]
     # Held but stationary on the following tick cannot replay the discarded pixels.
     assert node.controls.velocity(0.1) == (0.,0.,0.)
+    node.positions = positions()
     with patch('hand_teleop.mouse_teleop_node.rclpy.ok', return_value=True), \
             patch('hand_teleop.mouse_teleop_node.rclpy.spin_once'), \
             patch('hand_teleop.mouse_teleop_node.time.monotonic', return_value=0.15):

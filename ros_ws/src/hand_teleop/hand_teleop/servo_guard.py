@@ -39,6 +39,11 @@ class ServoGuard:
         self.positions = None
         self.stamp_ns = None
         self.received_wall = None
+        self.settings = {
+            name: node.declare_parameter('singularity_' + name, default).value
+            for name, default in [('warning', 17.0), ('halt', 25.0),
+                                  ('horizon', 0.3), ('step', 0.05), ('hysteresis', 0.5)]
+        }
         self.status = node.create_publisher(String, '~/guard_status', 10)
         node.create_subscription(
             JointState, feedback_topic, self.joint_feedback,
@@ -58,7 +63,7 @@ class ServoGuard:
 
     def load_model(self, description):
         try:
-            motion_filter = SingularityFilter(SerialModel(description))
+            motion_filter = SingularityFilter(SerialModel(description), **self.settings)
         except ValueError as error:
             self.filter = None
             self.error = str(error)
@@ -76,6 +81,8 @@ class ServoGuard:
             self.received_wall = time.monotonic()
         except ValueError:
             self.positions = None
+            if self.filter is not None:
+                self.filter.reset()
             self.on_stop()
 
     def decide(self, velocity, wall_now=None):
@@ -96,6 +103,7 @@ class ServoGuard:
                 self.stamp_ns, self.received_wall,
                 self.node.get_clock().now().nanoseconds, wall_now):
             self.on_stop()
+            self.filter.reset()
             return MotionDecision((0.0, 0.0, 0.0), True,
                                   'Waiting for fresh joint feedback')
         return self.filter.filter(velocity, self.positions)
