@@ -22,6 +22,7 @@ def node():
     result.canvas.winfo_rootx.return_value = 100
     result.canvas.winfo_rooty.return_value = 100
     result.root = MagicMock()
+    result.guard = MagicMock()
     result.status = MagicMock()
     result.publish = MagicMock()
     return result

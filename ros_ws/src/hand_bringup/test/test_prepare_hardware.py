@@ -16,7 +16,8 @@ def completed(result):
     return future
 
 
-def test_ready_startup_never_sends_a_joint_goal():
+@pytest.mark.parametrize('pose_blocked', [False, True])
+def test_ready_startup_never_sends_a_joint_goal(pose_blocked):
     node = MagicMock()
     node.get_clock.return_value.now.return_value.nanoseconds = 10_000_000_000
     message = JointState()
@@ -44,17 +45,25 @@ def test_ready_startup_never_sends_a_joint_goal():
     node.create_client.side_effect = client
     node.create_publisher.side_effect = AssertionError('Initializer must not publish motion')
     with patch.object(prepare, 'rclpy') as ros, \
+            patch.object(prepare, 'StartupPose') as monitor, \
             patch('rclpy.action.ActionClient', side_effect=AssertionError('No startup goals')):
+        monitor.return_value.assess.return_value = SimpleNamespace(
+            blocked=pose_blocked, reason='Near singularity', zone='NORMAL', condition=12.)
         ros.create_node.return_value = node
+        ros.ok.side_effect = [True, True, False] if pose_blocked else None
         ros.ok.return_value = True
-        prepare.main()
-    start.call_async.assert_called_once()
+        if pose_blocked:
+            with pytest.raises(RuntimeError, match='readiness timed out'):
+                prepare.main()
+        else:
+            prepare.main()
+    assert start.call_async.call_count == (0 if pose_blocked else 1)
     node.create_publisher.assert_not_called()
     ros.try_shutdown.assert_called_once()
 
 
 def test_interrupt_cleanup_is_idempotent():
-    with patch.object(prepare, 'rclpy') as ros:
+    with patch.object(prepare, 'rclpy') as ros, patch.object(prepare, 'StartupPose'):
         ros.ok.return_value = True
         ros.spin_once.side_effect = KeyboardInterrupt
         with pytest.raises(SystemExit) as error:
@@ -66,6 +75,7 @@ def test_interrupt_cleanup_is_idempotent():
 
 def test_readiness_timeout_does_not_report_ready():
     with patch.object(prepare, 'rclpy') as ros, \
+            patch.object(prepare, 'StartupPose'), \
             patch.object(prepare.time, 'monotonic', side_effect=[0.0, 100.0]):
         ros.ok.return_value = True
         with pytest.raises(RuntimeError, match='readiness timed out'):
@@ -89,6 +99,7 @@ def test_broadcaster_without_successful_driver_reads_cannot_start_servo():
 
     node.create_subscription.side_effect = subscribe
     with patch.object(prepare, 'rclpy') as ros, \
+            patch.object(prepare, 'StartupPose'), \
             patch.object(prepare.time, 'monotonic', side_effect=[0.0, 0.0, 100.0]):
         ros.create_node.return_value = node
         ros.ok.return_value = True

@@ -2,12 +2,14 @@
 import math
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 import numpy as np
 import pytest
 
 from hand_teleop.mouse_teleop_node import MouseInput, MouseTeleop
+from hand_teleop.servo_guard import ServoGuard
 from hand_teleop.singularity_filter import (
     SerialModel, SingularityFilter, fresh_feedback, joint_positions,
 )
@@ -36,21 +38,24 @@ def positions(degrees=POSE):
 def test_only_directions_approaching_singularity_are_blocked(simulated_filter, axis, sign, blocked):
     velocity = [0.,0.,0.]; velocity[axis] = sign*0.01
     decision = simulated_filter.filter(velocity, positions())
-    assert decision.blocked is blocked
+    assert not decision.blocked
     assert decision.condition == pytest.approx(18.2002, abs=0.001)
-    assert decision.velocity == ((0.,0.,0.) if blocked else tuple(velocity))
+    assert (decision.speed_scale < 1.0) is blocked
+    np.testing.assert_allclose(decision.velocity, np.array(velocity) * decision.speed_scale)
 
 
 def test_same_mouse_direction_changes_with_robot_pose(simulated_filter):
-    assert simulated_filter.filter((0.01,0,0), positions()).blocked
+    assert simulated_filter.filter((0.01,0,0), positions()).speed_scale < 1.0
     changed = list(POSE); changed[0] -= 180
     assert not simulated_filter.filter((0.01,0,0), positions(changed)).blocked
 
 
-def test_diagonal_is_rejected_whole_without_steering_in_another_direction(simulated_filter):
+def test_diagonal_is_scaled_whole_without_steering_in_another_direction(simulated_filter):
     decision = simulated_filter.filter((0.01,0.01,0), positions())
-    assert decision.blocked
-    assert decision.velocity == (0.,0.,0.)
+    assert not decision.blocked
+    assert 0 < decision.speed_scale < 1
+    np.testing.assert_allclose(decision.velocity,
+                               np.array((0.01,0.01,0)) * decision.speed_scale)
 
 
 def test_singular_pose_cannot_generate_nan_commands(simulated_filter):
@@ -115,12 +120,18 @@ def test_jacobian_matches_independently_validated_condition(simulated_filter):
 
 def test_ui_tick_publishes_zero_for_blocked_drag_and_discards_it(simulated_filter):
     node = object.__new__(MouseTeleop)
-    node.guard = simulated_filter; node.guard_error = ''
-    node.positions = positions()
-    node.joint_stamp_ns = 10_000_000_000; node.joint_received_wall = 0.0
     node.get_clock = MagicMock()
     node.get_clock.return_value.now.return_value.nanoseconds = 10_000_000_000
     node.controls = MouseInput(0.05,0.001)
+    host = MagicMock()
+    host.declare_parameter.side_effect = lambda name, default: SimpleNamespace(value=default)
+    host.get_clock = node.get_clock
+    node.guard = ServoGuard(host, on_stop=node.controls.stop)
+    node.guard.filter = simulated_filter
+    node.guard.positions = positions([0]*6)
+    node.guard.stamp_ns = 10_000_000_000
+    node.guard.received_wall = 0.0
+    node.guard.previous_zone = 'RECOVERY'
     node.controls.start(0,0,0.0); node.controls.select_shift(True)
     node.controls.move(0,-0.5)  # Shift + drag up requests +X, blocked at this pose.
     node.last_tick = 0.0
@@ -135,6 +146,8 @@ def test_ui_tick_publishes_zero_for_blocked_drag_and_discards_it(simulated_filte
     assert 'singularity' in node.guard_status.set.call_args.args[0]
     # Held but stationary on the following tick cannot replay the discarded pixels.
     assert node.controls.velocity(0.1) == (0.,0.,0.)
+    node.guard.positions = positions()
+    node.guard.previous_zone = 'CAUTION'
     with patch('hand_teleop.mouse_teleop_node.rclpy.ok', return_value=True), \
             patch('hand_teleop.mouse_teleop_node.rclpy.spin_once'), \
             patch('hand_teleop.mouse_teleop_node.time.monotonic', return_value=0.15):
@@ -145,12 +158,17 @@ def test_ui_tick_publishes_zero_for_blocked_drag_and_discards_it(simulated_filte
 
 def test_stale_pose_disarms_mouse_before_publishing(simulated_filter):
     node = object.__new__(MouseTeleop)
-    node.guard = simulated_filter
-    node.positions = positions()
-    node.joint_stamp_ns = 10_000_000_000; node.joint_received_wall = 0.0
     node.get_clock = MagicMock()
     node.get_clock.return_value.now.return_value.nanoseconds = 11_000_000_000
     node.controls = MouseInput(0.05)
+    host = MagicMock()
+    host.declare_parameter.side_effect = lambda name, default: SimpleNamespace(value=default)
+    host.get_clock = node.get_clock
+    node.guard = ServoGuard(host, on_stop=node.controls.stop)
+    node.guard.filter = simulated_filter
+    node.guard.positions = positions()
+    node.guard.stamp_ns = 10_000_000_000
+    node.guard.received_wall = 0.0
     node.controls.start(0,0,0); node.controls.move(10,0)
     decision = node.filter_velocity((0,-0.01,0),1.0)
     assert decision.blocked and decision.velocity == (0.,0.,0.)

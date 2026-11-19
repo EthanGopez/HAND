@@ -13,6 +13,17 @@ class MotionDecision:
     blocked: bool
     reason: str
     condition: float = None
+    zone: str = 'STOP'
+    speed_scale: float = 0.0
+    predicted_condition: float = None
+
+
+@dataclass(frozen=True)
+class MotionPrediction:
+    conditions: tuple
+    joint_margin: float
+    speed_usage: float
+    reason: str = ''
 
 
 def fresh_feedback(stamp_ns, received_wall, ros_now_ns, wall_now, timeout=0.2):
@@ -128,19 +139,49 @@ class SerialModel:
 
 
 class SingularityFilter:
-    """Reject the complete drag when its predicted path approaches a singularity.
+    """Preview and scale whole commands with gated singularity recovery.
 
     This conservative UI prefilter supplements Servo. It is not a path planner
     or a guarantee about a physical robot's response.
     """
 
-    def __init__(self, model, warning=17.0, halt=25.0, horizon=0.3, step=0.05):
-        if (not all(map(math.isfinite, (warning, halt, horizon, step)))
+    def __init__(self, model, warning=17.0, halt=25.0, horizon=0.3, step=0.05,
+                 hysteresis=0.5, recovery_speed=0.005, recovery_ceiling=28.0):
+        if (not all(map(math.isfinite, (warning, halt, horizon, step, hysteresis)))
                 or not 1 < warning < halt <= 25 or not 0 < step <= horizon <= 0.5):
             raise ValueError('Invalid singularity filter configuration')
+        if not 0 <= hysteresis < min(warning - 1, halt - warning):
+            raise ValueError('Invalid zone hysteresis')
+        if (not math.isfinite(recovery_speed) or not 0 < recovery_speed <= 0.01
+                or not math.isfinite(recovery_ceiling)
+                or not halt < recovery_ceiling <= 28.):
+            raise ValueError('Invalid recovery bounds')
         self.model, self.warning, self.halt = model, warning, halt
+        self.recovery_speed, self.recovery_ceiling = recovery_speed, recovery_ceiling
+        self.hysteresis = hysteresis
+        self.zone = 'NORMAL'
         self.steps = math.ceil(horizon/step)
         self.dt = horizon/self.steps
+
+    def reset(self):
+        self.zone = 'NORMAL'
+
+    def classify(self, condition):
+        if condition >= self.halt:
+            self.zone = 'RECOVERY'
+        elif self.zone == 'RECOVERY' and condition >= self.halt - self.hysteresis:
+            pass
+        elif condition >= self.warning:
+            self.zone = 'CAUTION'
+        elif self.zone != 'NORMAL' and condition >= self.warning - self.hysteresis:
+            self.zone = 'CAUTION'
+        else:
+            self.zone = 'NORMAL'
+        return self.zone
+
+    def approach_scale(self, condition):
+        fraction = np.clip((self.halt - condition) / (self.halt - self.warning), 0., 1.)
+        return float(fraction * fraction * (3. - 2. * fraction))
 
     @staticmethod
     def condition(jacobian):
@@ -149,11 +190,44 @@ class SingularityFilter:
             return math.inf
         return float(singular[0]/singular[-1])
 
-    def filter(self, velocity, positions):
+    def predict(self, velocity, angles):
+        """Preview the complete velocity vector without applying zone policy."""
+        angles = np.array(angles, dtype=float, copy=True)
+        twist = np.r_[velocity, [0., 0., 0.]]
+        conditions = []
+        margin = float(np.min(np.minimum(
+            angles - self.model.lower, self.model.upper - angles)))
+        speed_usage = 0.0
+        for _ in range(self.steps):
+            jacobian = self.model.jacobian(angles)
+            left, singular, right = np.linalg.svd(jacobian, full_matrices=False)
+            weights = singular / (singular * singular + 1e-6)
+            joint_speed = right.T @ (weights * (left.T @ twist))
+            if not np.isfinite(joint_speed).all():
+                return MotionPrediction(tuple(conditions), margin, speed_usage,
+                                        'Cannot predict motion reliably')
+            speed_usage = max(speed_usage, float(np.max(
+                np.abs(joint_speed) / self.model.speeds)))
+            if speed_usage > 1.0:
+                return MotionPrediction(tuple(conditions), margin, speed_usage,
+                                        'Motion would exceed a joint speed limit')
+            angles += joint_speed * self.dt
+            margin = min(margin, float(np.min(np.minimum(
+                angles - self.model.lower, self.model.upper - angles))))
+            if margin < 0.1:
+                return MotionPrediction(tuple(conditions), margin, speed_usage,
+                                        'Motion would approach a configured joint limit')
+            conditions.append(self.condition(self.model.jacobian(angles)))
+        return MotionPrediction(tuple(conditions), margin, speed_usage)
+
+    def filter(self, velocity, positions, recovery_enabled=False):
         condition = None
+        predicted = None
+        zone = 'STOP'
 
         def blocked(reason):
-            return MotionDecision((0.0,0.0,0.0), True, reason, condition)
+            return MotionDecision((0.0,0.0,0.0), True, reason, condition,
+                                  zone, 0.0, predicted)
 
         try:
             requested = np.asarray(velocity, dtype=float)
@@ -167,31 +241,53 @@ class SingularityFilter:
                 return blocked(self.model.names[outside[0]] + ' is outside configured joint limits')
             jacobian = self.model.jacobian(angles)
             condition = self.condition(jacobian)
-            if condition >= self.halt:
-                return blocked('Arm is too close to a singularity; reposition before mouse control')
+            zone = self.classify(condition)
+            if not math.isfinite(condition) or condition >= self.recovery_ceiling:
+                return blocked('Near singularity: reposition required')
+            if np.any(angles < self.model.lower + 0.1) or np.any(angles > self.model.upper - 0.1):
+                return blocked('Pose is too close to a configured joint limit')
+            if zone == 'RECOVERY' and not recovery_enabled:
+                return blocked('Near singularity: recovery enable and fresh hold required')
             if np.linalg.norm(requested) == 0:
-                return MotionDecision((0.,0.,0.), False, 'Ready', condition)
-            twist = np.r_[requested, [0.,0.,0.]]
-            previous = condition
-            for _ in range(self.steps):
-                u, singular, vt = np.linalg.svd(jacobian, full_matrices=False)
-                # Damping prevents an inverse singular value from becoming infinite.
-                weights = singular/(singular*singular + 1e-6)
-                joint_speed = vt.T @ (weights*(u.T @ twist))
-                if not np.isfinite(joint_speed).all():
-                    return blocked('Cannot predict this drag reliably')
-                if np.any(np.abs(joint_speed) > self.model.speeds):
-                    return blocked('Drag would exceed a joint speed limit')
-                angles = angles + joint_speed*self.dt
-                if np.any(angles < self.model.lower+0.1) or np.any(angles > self.model.upper-0.1):
-                    return blocked('Drag would approach a configured joint limit')
-                jacobian = self.model.jacobian(angles)
-                predicted = self.condition(jacobian)
-                if predicted >= self.halt:
-                    return blocked('Drag would approach a singularity')
-                if predicted >= self.warning and predicted > previous+1e-5:
-                    return blocked('Drag would move closer to a singularity; reverse direction')
-                previous = predicted
-            return MotionDecision(tuple(float(v) for v in requested), False, 'Direction allowed', condition)
+                return MotionDecision((0.,0.,0.), False, 'Ready', condition,
+                                      zone, 1.0, condition)
+            if zone == 'RECOVERY':
+                scale = float(min(1.0, self.recovery_speed / np.linalg.norm(requested)))
+                candidate = requested * scale
+                prediction = self.predict(candidate, angles)
+                if prediction.reason:
+                    return blocked(prediction.reason)
+                previous = condition
+                for predicted in prediction.conditions:
+                    if not math.isfinite(predicted) or predicted >= previous - 1e-5:
+                        return blocked('Recovery must improve conditioning at every preview step')
+                    previous = predicted
+                return MotionDecision(tuple(float(value) for value in candidate), False,
+                                      'Recovery direction improves conditioning', condition,
+                                      zone, scale, max(prediction.conditions))
+            prediction = self.predict(requested, angles)
+            if prediction.reason:
+                return blocked(prediction.reason)
+            peak = max(prediction.conditions)
+            approaching = peak > condition + 1e-5
+            scale = self.approach_scale(max(condition, peak)) if approaching else 1.0
+            if approaching and scale == 0.0:
+                scale = 0.5 * self.approach_scale(condition)
+            for _ in range(12):
+                if scale < 1e-4:
+                    break
+                candidate = requested * scale
+                prediction = self.predict(candidate, angles)
+                if prediction.reason:
+                    return blocked(prediction.reason)
+                predicted = max(prediction.conditions)
+                if math.isfinite(predicted) and predicted < self.halt:
+                    return MotionDecision(tuple(float(value) for value in candidate),
+                                          False, 'Slowing near singularity' if scale < 1.0
+                                          else 'Direction allowed', condition,
+                                          'CAUTION' if scale < 1.0 else zone,
+                                          scale, predicted)
+                scale *= 0.5
+            return blocked('Motion would approach a singularity; reverse direction')
         except (KeyError, ValueError, TypeError, np.linalg.LinAlgError, FloatingPointError):
             return blocked('Robot pose or motion prediction is unavailable')

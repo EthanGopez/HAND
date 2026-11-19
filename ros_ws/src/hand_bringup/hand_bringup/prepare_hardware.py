@@ -11,6 +11,7 @@ from controller_manager_msgs.srv import ListControllers
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import JointState
 from std_srvs.srv import Trigger
+from hand_teleop.startup_pose import StartupPose
 
 
 JOINTS = {f'joint{i}' for i in range(1, 7)}
@@ -29,6 +30,7 @@ def valid_feedback(msg, now_ns):
 def main(args=None):
     rclpy.init(args=args)
     node = rclpy.create_node('prepare_hardware')
+    pose = StartupPose(node, '/xarm/joint_states')
     feedback = [None]
     driver_feedback = [None]
     subscription = node.create_subscription(
@@ -65,12 +67,22 @@ def main(args=None):
                       if controller.state == 'active'}
             if not CONTROLLERS.issubset(active) or not fresh():
                 continue
+            decision = pose.assess()
+            if decision.blocked:
+                node.get_logger().warning('Startup pose blocked: ' + decision.reason,
+                                          throttle_duration_sec=2.0)
+                continue
             result = wait(start.call_async(Trigger.Request()))
             if not result.success:
                 raise RuntimeError(f'Servo start failed: {result.message}')
             if not fresh():
                 raise RuntimeError('Joint feedback lost during Servo startup')
-            node.get_logger().info('Hardware feedback ready; enabling mouse at current pose')
+            decision = pose.assess()
+            if decision.blocked:
+                raise RuntimeError('Pose became unsuitable during startup: ' + decision.reason)
+            node.get_logger().info(
+                f'Hardware pose ready ({decision.zone}, condition {decision.condition:.2f}); '
+                'enabling teleoperation at measured pose')
             return
         raise RuntimeError('Hardware readiness timed out; mouse input remains disabled')
     except KeyboardInterrupt:
