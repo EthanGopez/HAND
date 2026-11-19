@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from hand_teleop.singularity_filter import SerialModel, SingularityFilter
+from hand_teleop.recovery_hold import RecoveryHold
 
 
 class PredictionTests(unittest.TestCase):
@@ -90,6 +91,59 @@ class CautionTests(unittest.TestCase):
         self.guard.filter((0.01, 0., 0.), self.positions)
         self.assertEqual(self.guard.filter((0., 0., 0.), self.positions).velocity,
                          (0., 0., 0.))
+
+
+class RecoveryTests(PredictionTests):
+    def setUp(self):
+        super().setUp()
+        self.angles = np.array([0.9788757726, 1.1884823155, 0.4157793029,
+                                0.1621084306, -1.1742727766, 0.5167202791])
+        self.positions = dict(zip(self.model.names, self.angles))
+
+    def test_recovery_requires_explicit_enable(self):
+        decision = self.guard.filter((0.01, 0., 0.), self.positions)
+        self.assertTrue(decision.blocked)
+        self.assertEqual(decision.zone, 'RECOVERY')
+
+    def test_recovery_caps_speed_and_improves_each_step(self):
+        decision = self.guard.filter((0.01, 0., 0.), self.positions, recovery_enabled=True)
+        self.assertFalse(decision.blocked)
+        self.assertLessEqual(np.linalg.norm(decision.velocity), 0.005)
+        prediction = self.guard.predict(decision.velocity, self.angles)
+        path = [decision.condition, *prediction.conditions]
+        self.assertTrue(all(after < before - 1e-5 for before, after in zip(path, path[1:])))
+
+    def test_recovery_rejects_worsening_direction(self):
+        decision = self.guard.filter((-0.01, 0., 0.), self.positions, recovery_enabled=True)
+        self.assertTrue(decision.blocked)
+        self.assertEqual(decision.velocity, (0., 0., 0.))
+
+    def test_hard_ceiling_cannot_be_bypassed(self):
+        guard = SingularityFilter(self.model, recovery_ceiling=26.)
+        self.assertTrue(guard.filter((0.01, 0., 0.), self.positions,
+                                     recovery_enabled=True).blocked)
+
+    def test_held_input_cannot_rearm_after_timeout_or_reset(self):
+        hold = RecoveryHold()
+        hold.update(True, 0.)
+        self.assertFalse(hold.active(0.))
+        hold.update(False, 0.)
+        hold.update(True, 0.05)
+        self.assertTrue(hold.active(0.1))
+        hold.update(True, 0.5)
+        self.assertFalse(hold.active(0.5))
+        hold.update(False, 0.6)
+        hold.update(True, 0.65)
+        self.assertTrue(hold.active(0.7))
+        hold.reset()
+        hold.update(True, 0.75)
+        self.assertFalse(hold.active(0.75))
+
+    def test_invalid_recovery_settings_are_rejected(self):
+        for settings in [{'recovery_speed': 0.1}, {'recovery_ceiling': 30.},
+                         {'recovery_speed': float('nan')}, {'halt': 26.}]:
+            with self.assertRaises(ValueError):
+                SingularityFilter(self.model, **settings)
 
 
 if __name__ == '__main__':

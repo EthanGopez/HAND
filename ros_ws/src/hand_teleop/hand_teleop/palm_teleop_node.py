@@ -95,11 +95,11 @@ class PalmTeleop(Node):
         if now - self.last_tick > 5 * TICK_PERIOD:
             # This process stalled. Disarm before publishing again, so a held
             # displacement cannot resume after Servo's own timeout stopped it.
-            self.controls.stop()
+            self.guard.invalidate()
         self.last_tick = now
         if not self.fresh(now):
             # No hand, or the vision node died. Either way: stop.
-            self.controls.stop()
+            self.guard.invalidate()
         decision = self.guard.decide(self.controls.velocity(), now)
         self.publish(decision.velocity)
         state = 'BLOCKED' if decision.blocked else (

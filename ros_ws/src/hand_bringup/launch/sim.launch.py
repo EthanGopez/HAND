@@ -52,7 +52,8 @@ def generate_launch_description():
     mouse = Node(
         package='hand_teleop', executable='mouse_teleop_node', output='screen',
         condition=LaunchConfigurationEquals('input_mode', 'mouse'),
-        parameters=[{'max_speed': max_speed, 'mouse_gain': mouse_gain}],
+        parameters=[{'max_speed': max_speed, 'mouse_gain': mouse_gain,
+                     'allow_recovery': LaunchConfiguration('allow_recovery')}],
     )
 
     # CSV input: the tracking demo (or a recording of it) supplies the hand
@@ -68,7 +69,8 @@ def generate_launch_description():
         package='hand_teleop', executable='palm_teleop_node', output='screen',
         condition=LaunchConfigurationEquals('input_mode', 'csv'),
         parameters=[{'max_speed': max_speed, 'scale_y': scale_y,
-                     'scale_z': scale_z, 'scale_x': scale_x}],
+                     'scale_z': scale_z, 'scale_x': scale_x,
+                     'allow_recovery': LaunchConfiguration('allow_recovery')}],
     )
 
     def after_ready(event, context):
@@ -77,6 +79,9 @@ def generate_launch_description():
         return [teleop, mouse, palm_vision, palm_teleop]
 
     return LaunchDescription([
+        DeclareLaunchArgument('allow_recovery', default_value='false',
+                              choices=['true', 'false'],
+                              description='Enable experimental gated recovery in simulation'),
         DeclareLaunchArgument('input_mode', default_value='hand',
                               choices=['hand', 'mouse', 'csv'],
                               description='Select the arm velocity input source'),

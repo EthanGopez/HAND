@@ -139,20 +139,25 @@ class SerialModel:
 
 
 class SingularityFilter:
-    """Reject the complete drag when its predicted path approaches a singularity.
+    """Preview and scale whole commands with gated singularity recovery.
 
     This conservative UI prefilter supplements Servo. It is not a path planner
     or a guarantee about a physical robot's response.
     """
 
     def __init__(self, model, warning=17.0, halt=25.0, horizon=0.3, step=0.05,
-                 hysteresis=0.5):
+                 hysteresis=0.5, recovery_speed=0.005, recovery_ceiling=28.0):
         if (not all(map(math.isfinite, (warning, halt, horizon, step, hysteresis)))
                 or not 1 < warning < halt <= 25 or not 0 < step <= horizon <= 0.5):
             raise ValueError('Invalid singularity filter configuration')
         if not 0 <= hysteresis < min(warning - 1, halt - warning):
             raise ValueError('Invalid zone hysteresis')
+        if (not math.isfinite(recovery_speed) or not 0 < recovery_speed <= 0.01
+                or not math.isfinite(recovery_ceiling)
+                or not halt < recovery_ceiling <= 28.):
+            raise ValueError('Invalid recovery bounds')
         self.model, self.warning, self.halt = model, warning, halt
+        self.recovery_speed, self.recovery_ceiling = recovery_speed, recovery_ceiling
         self.hysteresis = hysteresis
         self.zone = 'NORMAL'
         self.steps = math.ceil(horizon/step)
@@ -215,7 +220,7 @@ class SingularityFilter:
             conditions.append(self.condition(self.model.jacobian(angles)))
         return MotionPrediction(tuple(conditions), margin, speed_usage)
 
-    def filter(self, velocity, positions):
+    def filter(self, velocity, positions, recovery_enabled=False):
         condition = None
         predicted = None
         zone = 'STOP'
@@ -237,11 +242,29 @@ class SingularityFilter:
             jacobian = self.model.jacobian(angles)
             condition = self.condition(jacobian)
             zone = self.classify(condition)
-            if zone == 'RECOVERY':
-                return blocked('Arm is too close to a singularity; reposition before mouse control')
+            if not math.isfinite(condition) or condition >= self.recovery_ceiling:
+                return blocked('Near singularity: reposition required')
+            if np.any(angles < self.model.lower + 0.1) or np.any(angles > self.model.upper - 0.1):
+                return blocked('Pose is too close to a configured joint limit')
+            if zone == 'RECOVERY' and not recovery_enabled:
+                return blocked('Near singularity: recovery enable and fresh hold required')
             if np.linalg.norm(requested) == 0:
                 return MotionDecision((0.,0.,0.), False, 'Ready', condition,
                                       zone, 1.0, condition)
+            if zone == 'RECOVERY':
+                scale = float(min(1.0, self.recovery_speed / np.linalg.norm(requested)))
+                candidate = requested * scale
+                prediction = self.predict(candidate, angles)
+                if prediction.reason:
+                    return blocked(prediction.reason)
+                previous = condition
+                for predicted in prediction.conditions:
+                    if not math.isfinite(predicted) or predicted >= previous - 1e-5:
+                        return blocked('Recovery must improve conditioning at every preview step')
+                    previous = predicted
+                return MotionDecision(tuple(float(value) for value in candidate), False,
+                                      'Recovery direction improves conditioning', condition,
+                                      zone, scale, max(prediction.conditions))
             prediction = self.predict(requested, angles)
             if prediction.reason:
                 return blocked(prediction.reason)

@@ -317,6 +317,7 @@ sequenceDiagram
     Prepare->>Servo: stop_servo
     Prepare->>Controller: FollowJointTrajectory ready goal
     Controller-->>Prepare: Successful result after execution
+    Prepare->>Prepare: Assess fresh measured pose against active model
     Prepare->>Servo: start_servo
     Prepare-->>Launch: Exit successfully
     Launch->>Launch: Start selected input node
@@ -327,6 +328,9 @@ The target for `joint1` through `joint6`, in radians, is
 Servo is stopped during this move so its hold trajectories cannot override
 initialization. Service/action availability and results have 90-second waits.
 Failure causes launch shutdown instead of enabling teleoperation.
+The measured pose must pass the shared guard before and after Servo restarts;
+controller success alone is insufficient. Physical startup performs the same
+read-only assessment without sending a ready trajectory.
 
 The fake launch delays initializer startup by six seconds. Gazebo starts it
 alongside the simulator and relies on service/action readiness. Startup duration
@@ -438,9 +442,13 @@ configuration in the corresponding `xarm_ros2` packages.
 
 `singularity_filter.py` builds the configured six-joint base-to-tool chain and
 uses its spatial Jacobian to preview each mouse translation for 0.3 seconds.
-It rejects the whole command when the preview worsens a condition number of
-17 or more, reaches 25, exceeds joint speed limits, or approaches configured
-joint bounds. It never changes the physical joint ranges or Servo thresholds.
+It scales approaching commands near condition 17, previews the scaled vector,
+and prevents normal/caution output from reaching 25. Experimental recovery is
+disabled by default; it requires an explicit hold and improvement at every
+preview step, with a low speed cap and a hard ceiling. Joint margins and speed
+limits remain enforced. Both input nodes use `ServoGuard` and publish private
+`guard_status` JSON diagnostics. See [three-zone control](THREE_ZONE_CONTROL.md).
+It never changes the physical joint ranges or Servo thresholds.
 The mouse window shows the rejection reason and consumes rejected displacement
 once. Missing model/invalid pose data yields zero output; joint feedback must
 be fresh in both ROS and monotonic wall time within 0.2 seconds. Physical mouse

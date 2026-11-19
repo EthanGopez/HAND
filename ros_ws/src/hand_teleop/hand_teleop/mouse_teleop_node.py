@@ -7,13 +7,7 @@ import tkinter as tk
 import rclpy
 from geometry_msgs.msg import TwistStamped
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
-from sensor_msgs.msg import JointState
-from std_msgs.msg import String
-
-from hand_teleop.singularity_filter import (
-    MotionDecision, SerialModel, SingularityFilter, fresh_feedback, joint_positions,
-)
+from hand_teleop.servo_guard import ServoGuard
 
 
 class MouseInput:
@@ -109,24 +103,12 @@ class MouseTeleop(Node):
         self.base_mouse_gain = mouse_gain
         self.space_held = False
         self.space_release_pending = None
-        self.guard = None
-        self.guard_error = 'Waiting for robot model'
         self.last_blocked_reason = ''
         self.blocked_reason_until = 0.0
-        self.positions = None
-        self.joint_stamp_ns = self.joint_received_wall = None
         description = self.declare_parameter('robot_description', '').value
         feedback_topic = self.declare_parameter('feedback_topic', '/joint_states').value
-        self.create_subscription(
-            JointState, feedback_topic, self.joint_feedback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
-        if description:
-            self.load_model(description)
-        else:
-            self.create_subscription(
-                String, '/robot_description', lambda msg: self.load_model(msg.data),
-                QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
-                           durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self.guard = ServoGuard(self, description, feedback_topic,
+                                on_stop=self.controls.stop)
         self.pub = self.create_publisher(
             TwistStamped, '/servo_server/delta_twist_cmds', 10
         )
@@ -140,7 +122,7 @@ class MouseTeleop(Node):
                  'Trackpad: hover inside pad, hold Space, then move pointer\n'
                  'Hold Shift too: vertical → X (up = +X)\n'
                  'Drag faster = move faster. Hold still / release = stop.\n'
-                 'Drags toward singularities are ignored near restricted poses.',
+                 'Approaching singularities slows motion; blocked inputs show a reason.',
             padx=12, pady=10,
         ).pack()
         self.canvas = tk.Canvas(
@@ -187,37 +169,8 @@ class MouseTeleop(Node):
             'Hold left click or Space inside the pad; Shift selects X instead of Z.'
         )
 
-    def load_model(self, description):
-        try:
-            guard = SingularityFilter(SerialModel(description))
-        except ValueError as error:
-            self.guard = None
-            self.guard_error = str(error)
-            return
-        self.guard = guard
-        self.guard_error = ''
-        # A changed model cannot replay an already held mouse stroke.
-        self.controls.stop()
-
-    def joint_feedback(self, message):
-        try:
-            self.positions = joint_positions(message.name, message.position)
-            self.joint_stamp_ns = (message.header.stamp.sec*1_000_000_000
-                                   + message.header.stamp.nanosec)
-            self.joint_received_wall = time.monotonic()
-        except ValueError:
-            self.positions = None
-            self.controls.stop()
-
     def filter_velocity(self, velocity, now):
-        if self.guard is None:
-            return MotionDecision((0.,0.,0.), True, self.guard_error)
-        if self.positions is None or not fresh_feedback(
-                self.joint_stamp_ns, self.joint_received_wall,
-                self.get_clock().now().nanoseconds, now):
-            self.controls.stop()
-            return MotionDecision((0.,0.,0.), True, 'Waiting for fresh joint feedback')
-        return self.guard.filter(velocity, self.positions)
+        return self.guard.decide(velocity, now)
 
     def motion(self, event):
         # Coordinates increase downward; signs are handled by MouseInput.
@@ -289,6 +242,7 @@ class MouseTeleop(Node):
             self.root.after_cancel(self.space_release_pending)
             self.space_release_pending = None
         self.controls.stop()
+        self.guard.hold.reset()
         self.shift_keys.clear()
         self.publish((0.0, 0.0, 0.0))
         self.status.set('STOPPED — click and hold inside the pad')
@@ -317,7 +271,7 @@ class MouseTeleop(Node):
             reason = 'Last blocked input: ' + self.last_blocked_reason
         else:
             reason = decision.reason
-        self.guard_status.set(reason)
+        self.guard_status.set(f'{decision.zone} | scale {decision.speed_scale:.2f} | {reason}')
         self.publish(velocity)
         mode = 'Y / X (Shift)' if self.controls.shift else 'Y / Z'
         state = 'BLOCKED' if decision.blocked else ('ACTIVE' if self.controls.active else 'STOPPED')

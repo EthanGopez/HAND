@@ -351,11 +351,14 @@ Mouse measurement uses a monotonic wall clock independently of ROS time.
 Each mouse command passes through a pose-aware singularity filter before it is
 published. There is no fixed blacklist of mouse directions: the filter uses the
 configured URDF and fresh joint feedback to predict 0.3 seconds of the requested
-translation. Near a singularity (Jacobian condition at least 17), drags predicted
-to worsen it are ignored. Predictions reaching condition 25 or approaching a
-configured joint position/speed limit are also blocked. The window displays
-`BLOCKED` and the reason. A blocked diagonal is discarded completely, and
-discarded pixels are never replayed. Reversing the drag is evaluated anew.
+translation. Approaching commands near condition 17 are smoothly scaled as a
+whole vector, then predicted again. Normal/caution output must stay below 25;
+joint margins and speed limits still apply. Recovery above that boundary is
+disabled by default and requires explicit enable, a fresh operator hold, and an
+improving preview below a bounded ceiling. The window displays the zone, speed
+scale, and reason. Discarded pixels are never replayed. See
+[three-zone control](THREE_ZONE_CONTROL.md) for parameters, startup assessment,
+the recovery input contract, and validation limitations.
 
 For the last reported pose, a simulation predicts that left (+Y), down (-Z),
 and Shift-up (+X) approach a singularity; these directions can change at another

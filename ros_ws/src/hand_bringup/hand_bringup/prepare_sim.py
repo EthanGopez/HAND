@@ -1,15 +1,18 @@
 """Move a simulated arm out of its singular home pose before enabling teleop."""
 
 import rclpy
+import time
 from control_msgs.action import FollowJointTrajectory
 from rclpy.action import ActionClient
 from std_srvs.srv import Trigger
 from trajectory_msgs.msg import JointTrajectoryPoint
+from hand_teleop.startup_pose import StartupPose
 
 
 def main():
     rclpy.init()
     node = rclpy.create_node('prepare_sim')
+    pose = StartupPose(node)
 
     def wait(future, timeout=90.0):
         rclpy.spin_until_future_complete(node, future, timeout_sec=timeout)
@@ -48,7 +51,21 @@ def main():
         result = wait(handle.get_result_async()).result
         if result.error_code != FollowJointTrajectory.Result.SUCCESSFUL:
             raise RuntimeError(f'Ready move failed: {result.error_string}')
+        deadline = time.monotonic() + 10.0
+        while rclpy.ok():
+            rclpy.spin_once(node, timeout_sec=0.05)
+            decision = pose.assess()
+            if not decision.blocked:
+                break
+            if time.monotonic() >= deadline:
+                raise RuntimeError('Measured ready pose rejected: ' + decision.reason)
+        if not rclpy.ok():
+            raise RuntimeError('Simulation initialization interrupted')
         trigger('start_servo')
+        decision = pose.assess()
+        if decision.blocked:
+            trigger('stop_servo')
+            raise RuntimeError('Pose became unsuitable during startup: ' + decision.reason)
         node.get_logger().info('Ready pose reached; enabling teleoperation')
     finally:
         node.destroy_node()
