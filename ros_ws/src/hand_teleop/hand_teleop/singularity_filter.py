@@ -13,6 +13,17 @@ class MotionDecision:
     blocked: bool
     reason: str
     condition: float = None
+    zone: str = 'STOP'
+    speed_scale: float = 0.0
+    predicted_condition: float = None
+
+
+@dataclass(frozen=True)
+class MotionPrediction:
+    conditions: tuple
+    joint_margin: float
+    speed_usage: float
+    reason: str = ''
 
 
 def fresh_feedback(stamp_ns, received_wall, ros_now_ns, wall_now, timeout=0.2):
@@ -149,11 +160,44 @@ class SingularityFilter:
             return math.inf
         return float(singular[0]/singular[-1])
 
+    def predict(self, velocity, angles):
+        """Preview the complete velocity vector without applying zone policy."""
+        angles = np.array(angles, dtype=float, copy=True)
+        twist = np.r_[velocity, [0., 0., 0.]]
+        conditions = []
+        margin = float(np.min(np.minimum(
+            angles - self.model.lower, self.model.upper - angles)))
+        speed_usage = 0.0
+        for _ in range(self.steps):
+            jacobian = self.model.jacobian(angles)
+            left, singular, right = np.linalg.svd(jacobian, full_matrices=False)
+            weights = singular / (singular * singular + 1e-6)
+            joint_speed = right.T @ (weights * (left.T @ twist))
+            if not np.isfinite(joint_speed).all():
+                return MotionPrediction(tuple(conditions), margin, speed_usage,
+                                        'Cannot predict motion reliably')
+            speed_usage = max(speed_usage, float(np.max(
+                np.abs(joint_speed) / self.model.speeds)))
+            if speed_usage > 1.0:
+                return MotionPrediction(tuple(conditions), margin, speed_usage,
+                                        'Motion would exceed a joint speed limit')
+            angles += joint_speed * self.dt
+            margin = min(margin, float(np.min(np.minimum(
+                angles - self.model.lower, self.model.upper - angles))))
+            if margin < 0.1:
+                return MotionPrediction(tuple(conditions), margin, speed_usage,
+                                        'Motion would approach a configured joint limit')
+            conditions.append(self.condition(self.model.jacobian(angles)))
+        return MotionPrediction(tuple(conditions), margin, speed_usage)
+
     def filter(self, velocity, positions):
         condition = None
+        predicted = None
+        zone = 'STOP'
 
         def blocked(reason):
-            return MotionDecision((0.0,0.0,0.0), True, reason, condition)
+            return MotionDecision((0.0,0.0,0.0), True, reason, condition,
+                                  zone, 0.0, predicted)
 
         try:
             requested = np.asarray(velocity, dtype=float)
@@ -167,31 +211,24 @@ class SingularityFilter:
                 return blocked(self.model.names[outside[0]] + ' is outside configured joint limits')
             jacobian = self.model.jacobian(angles)
             condition = self.condition(jacobian)
+            zone = ('NORMAL' if condition < self.warning else
+                    'CAUTION' if condition < self.halt else 'RECOVERY')
             if condition >= self.halt:
                 return blocked('Arm is too close to a singularity; reposition before mouse control')
             if np.linalg.norm(requested) == 0:
-                return MotionDecision((0.,0.,0.), False, 'Ready', condition)
-            twist = np.r_[requested, [0.,0.,0.]]
+                return MotionDecision((0.,0.,0.), False, 'Ready', condition,
+                                      zone, 1.0, condition)
+            prediction = self.predict(requested, angles)
+            if prediction.reason:
+                return blocked(prediction.reason)
             previous = condition
-            for _ in range(self.steps):
-                u, singular, vt = np.linalg.svd(jacobian, full_matrices=False)
-                # Damping prevents an inverse singular value from becoming infinite.
-                weights = singular/(singular*singular + 1e-6)
-                joint_speed = vt.T @ (weights*(u.T @ twist))
-                if not np.isfinite(joint_speed).all():
-                    return blocked('Cannot predict this drag reliably')
-                if np.any(np.abs(joint_speed) > self.model.speeds):
-                    return blocked('Drag would exceed a joint speed limit')
-                angles = angles + joint_speed*self.dt
-                if np.any(angles < self.model.lower+0.1) or np.any(angles > self.model.upper-0.1):
-                    return blocked('Drag would approach a configured joint limit')
-                jacobian = self.model.jacobian(angles)
-                predicted = self.condition(jacobian)
+            for predicted in prediction.conditions:
                 if predicted >= self.halt:
                     return blocked('Drag would approach a singularity')
                 if predicted >= self.warning and predicted > previous+1e-5:
                     return blocked('Drag would move closer to a singularity; reverse direction')
                 previous = predicted
-            return MotionDecision(tuple(float(v) for v in requested), False, 'Direction allowed', condition)
+            return MotionDecision(tuple(float(v) for v in requested), False,
+                                  'Direction allowed', condition, zone, 1.0, predicted)
         except (KeyError, ValueError, TypeError, np.linalg.LinAlgError, FloatingPointError):
             return blocked('Robot pose or motion prediction is unavailable')

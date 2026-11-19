@@ -105,7 +105,8 @@ class PalmTeleop(Node):
         state = 'BLOCKED' if decision.blocked else (
             'ACTIVE' if self.controls.active else 'WAITING')
         self.get_logger().info(
-            f'{state} | {decision.reason} | samples {self.samples} '
+            f'{state} | {decision.zone} | scale {decision.speed_scale:.2f} | '
+            f'{decision.reason} | samples {self.samples} '
             f'rejected {self.controls.rejected} '
             f'(depth {self.controls.depth_rejected}) | '
             f'X {decision.velocity[0]:+.3f} Y {decision.velocity[1]:+.3f} '

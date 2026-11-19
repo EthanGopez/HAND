@@ -10,6 +10,9 @@ adopt it without changing behaviour.
 """
 
 import time
+import json
+import math
+from dataclasses import asdict
 
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
@@ -36,6 +39,7 @@ class ServoGuard:
         self.positions = None
         self.stamp_ns = None
         self.received_wall = None
+        self.status = node.create_publisher(String, '~/guard_status', 10)
         node.create_subscription(
             JointState, feedback_topic, self.joint_feedback,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
@@ -75,6 +79,15 @@ class ServoGuard:
             self.on_stop()
 
     def decide(self, velocity, wall_now=None):
+        decision = self._decide(velocity, wall_now)
+        fields = asdict(decision)
+        for name in ('condition', 'predicted_condition'):
+            if fields[name] is not None and not math.isfinite(fields[name]):
+                fields[name] = None
+        self.status.publish(String(data=json.dumps(fields, allow_nan=False)))
+        return decision
+
+    def _decide(self, velocity, wall_now=None):
         """Return the velocity that may be published, and why."""
         wall_now = time.monotonic() if wall_now is None else wall_now
         if self.filter is None:
